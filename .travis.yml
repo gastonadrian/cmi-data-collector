@@ -5,6 +5,8 @@ node_js:
 script:
   - npm install
   - npm test
+  - npm run coverage
+  - npm run coverage:codeclimate
 addons:
     apt:
         packages:
