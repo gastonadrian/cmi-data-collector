@@ -1,13 +1,12 @@
 {
-  "name": "SkelEktron",
-  "productName": "SkelEktron",
-  "description": "Electron Template Desktop Application",
+  "name": "cmidatacollector",
+  "productName": "CMI Data Collector",
+  "description": "Migrate your management data to a CMI",
   "version": "0.0.6",
-  "homepage": "https://github.com/BZCoding/SkelEktron",
+  "homepage": "https://github.com/gastonadrian/cmi-data-collector",
   "author": {
-    "name": "BZ Coding",
-    "email": "hello@bzcoding.com",
-    "url": "https://bzcoding.com/"
+    "name": "Gaston Moreno / Roberto Cabrera",
+    "email": "gastonadrian@gmail.com"
   },
   "license": "MIT",
   "main": "main.js",

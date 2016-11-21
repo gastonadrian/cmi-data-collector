@@ -6,8 +6,6 @@ script:
   - npm install
   - npm test
 addons:
-    code_climate:
-        repo_token: b510733d1ea20597bdea8c046e41f7dedebd05b9e8f8324f833c089f97d27da8
     apt:
         packages:
           - xvfb
