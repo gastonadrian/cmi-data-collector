@@ -3,6 +3,7 @@ sudo: false
 node_js:
   - "6"
 script:
+  - npm install
   - npm test
 addons:
     code_climate:
