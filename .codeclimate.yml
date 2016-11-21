@@ -14,6 +14,6 @@ engines:
         paths:
             - "**.css"
             - "**.js"
- exclude_paths:
-    - test/
-    - app/lib
+exclude_paths:
+- "app/lib"
+- "app/lib/log.js"

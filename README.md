@@ -1,4 +1,5 @@
-# CMI: Migrador de datos [![Build Status](https://travis-ci.org/gastonadrian/cmi-data-collector.svg?branch=master)](https://travis-ci.org/gastonadrian/cmi-data-collector) [![Code Climate](https://codeclimate.com/github/gastonadrian/cmi-data-collector/badges/gpa.svg)](https://codeclimate.com/github/gastonadrian/cmi-data-collector) [![Test Coverage](https://codeclimate.com/github/gastonadrian/cmi-data-collector/badges/coverage.svg)](https://codeclimate.com/github/gastonadrian/cmi-data-collector/coverage)
+# CMI: Migrador de datos 
+[![Build Status](https://travis-ci.org/gastonadrian/cmi-data-collector.svg?branch=master)](https://travis-ci.org/gastonadrian/cmi-data-collector) [![Code Climate](https://codeclimate.com/github/gastonadrian/cmi-data-collector/badges/gpa.svg)](https://codeclimate.com/github/gastonadrian/cmi-data-collector) [![Test Coverage](https://codeclimate.com/github/gastonadrian/cmi-data-collector/badges/coverage.svg)](https://codeclimate.com/github/gastonadrian/cmi-data-collector/coverage)
 
 **Migre los datos de su sistema de gestion a nuestro CMI**
 
