@@ -6,7 +6,7 @@ Esta aplicacion forma parte del proyecto final ISI 2016
 
 ## Como compilar la aplicacion:
 
-Preinstalar [Node.js](https://nodejs.org/en/download/). From your command line:
+Preinstalar [Node.js](https://nodejs.org/en/download/). Desde la consola:
 
 ```bash
 # Clonar el repositorio
