@@ -13,7 +13,7 @@
   },
   "main": "main.js",
   "scripts": {
-    "test": "eslint test/** && mocha --recursive",
+    "test": "eslint app/main.js app/preload.js app/assets/js test/** && mocha test/unit --recursive",
     "unit": "eslint test/** && mocha test/unit --recursive",
     "integration": "eslint test/** && mocha test/integration --recursive",    
     "coverage": "istanbul cover node_modules/.bin/_mocha -- --recursive",
@@ -54,9 +54,9 @@
     "unit"
   ],
   "keywords": [
-    "electron-app",
-    "electron",
-    "boilerplate"
+    "cmi",
+    "data",
+    "collector"
   ],
   "build": {
     "appId": "com.gastonadrian.cmidatacollector",
