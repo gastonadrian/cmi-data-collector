@@ -1,0 +1,13 @@
+{
+  "extends": "idiomatic",
+  "rules":{
+    "valid-jsdoc": 2,
+    "require-jsdoc": 2    
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "mocha": true,
+    "amd":true
+  }
+}
