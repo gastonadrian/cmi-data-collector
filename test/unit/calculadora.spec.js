@@ -22,8 +22,21 @@ describe( '(unit) calculadora', () => {
       expect( calculadora.suma( 1, 1 ) ).to.be.equal( 2 )
       done()
     } )
+  } )
 
-  // add other tests...
+
+  describe( 'resta', () => {
+    it( '1 - 1 = 0', ( done ) => {
+      expect( calculadora.resta( 1, 1 ) ).to.be.equal( 0 )
+      done()
+    } )
+  } )
+
+  describe( 'multiplicacion', () => {
+    it( '2 * 13 = 26', ( done ) => {
+      expect( calculadora.multiplicacion( 2, 13 ) ).to.be.equal( 26 )
+      done()
+    } )
   } )
 
   // add other features...

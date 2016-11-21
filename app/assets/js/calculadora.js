@@ -21,6 +21,7 @@ function suma( a, b ) {
  */
 function resta( a, b ) {
   resultado = a - b;
+  return resultado
 }
 
 /**
@@ -32,11 +33,11 @@ function resta( a, b ) {
  */
 function multiplicacion( a, b ) {
   resultado = a * b;
+  return resultado;
 }
 
 module.exports = {
   suma: suma,
-  resultado: resultado,
   resta: resta,
   multiplicacion: multiplicacion
 };
