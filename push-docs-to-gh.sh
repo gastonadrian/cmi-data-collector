@@ -4,12 +4,12 @@ if [ "$TRAVIS_REPO_SLUG" == "gastonadrian/cmi-data-collector" ] && [ "$TRAVIS_BR
 
   echo -e "Publishing documentation...\n"
 
-  cp -R docs $HOME/docs-latest
+  cp -R ./docs $HOME/docs-latest
 
   cd $HOME
   git config --global user.email "travis@travis-ci.org"
   git config --global user.name "travis-ci"
-  git clone --quiet --branch=gh-pages https://${GITHUB_TOKEN}@github.com/${$TRAVIS_REPO_SLUG} gh-pages > /dev/null
+  git clone --quiet --branch=gh-pages https://${GITHUB_TOKEN}@github.com/gastonadrian/cmi-data-collector gh-pages > /dev/null
 
   cd gh-pages
   git rm -rf ./docs
