@@ -4,7 +4,7 @@ if [ "$TRAVIS_REPO_SLUG" == "gastonadrian/cmi-data-collector" ] && [ "$TRAVIS_BR
 
   echo -e "Publishing documentation...\n"
 
-  cp -R ./docs $HOME/docs-latest
+  cp -R ./docs/. $HOME/docs-latest/
 
   cd $HOME
   git config --global user.email "travis@travis-ci.org"
@@ -13,7 +13,7 @@ if [ "$TRAVIS_REPO_SLUG" == "gastonadrian/cmi-data-collector" ] && [ "$TRAVIS_BR
 
   cd gh-pages
   # git rm -rf ./docs
-  cp -Rf $HOME/docs-latest/ ./
+  cp -Rfa $HOME/docs-latest/. ./
   git add -f .
   git commit -m "Latest documentation on successful travis build $TRAVIS_BUILD_NUMBER auto-pushed to gh-pages"
   git push -fq origin gh-pages > /dev/null
