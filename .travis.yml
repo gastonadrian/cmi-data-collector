@@ -6,7 +6,11 @@ script:
   - npm install
   - npm test
   - npm run coverage
+after_success:
+  - npm run docs
   - npm run coverage:codeclimate
+after_script:
+  - ./push-docs-to-gh.sh
 addons:
     apt:
         packages:
