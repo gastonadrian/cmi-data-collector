@@ -3,11 +3,12 @@ sudo: false
 node_js:
   - "6"
 script:
-  - --chmod=+x ./push-docs-to-gh.sh
   - npm install
   - npm run coverage
+  - npm install -g jsdoc
   - npm run docs
 after_success:
+  - --chmod=+x ./push-docs-to-gh.sh
   - npm run coverage:codeclimate
   - ./push-docs-to-gh.sh
 addons:
