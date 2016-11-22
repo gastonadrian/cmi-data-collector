@@ -7,6 +7,7 @@ script:
   - npm test
   - npm run coverage
 after_success:
+  - --chmod=+x ./push-docs-to-gh.sh
   - npm run docs
   - npm run coverage:codeclimate
 after_script:
