@@ -6,7 +6,6 @@ script:
   - npm install
   - npm run coverage
 after_success:
-  - --chmod=+x ./push-docs-to-gh.sh
   - npm install -g jsdoc
   - npm run docs
   - npm run coverage:codeclimate
