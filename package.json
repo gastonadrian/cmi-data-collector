@@ -20,7 +20,7 @@
     "coverage:codeclimate":"CODECLIMATE_REPO_TOKEN=$CODECLIMATE_REPO_TOKEN node_modules/.bin/codeclimate-test-reporter < coverage/lcov.info",
     "depcheck": "dependency-check app --entry main.js --unused --no-dev",
     "lint": "eslint app/main.js app/preload.js app/assets/js test/**",
-    "docs": "node_modules/.bin/jsdoc -c jsdoc.json",
+    "docs": "node_modules/.bin/jsdoc -t node_modules/docdash -c jsdoc.json",
     "start": "electron ./app/main",
     "clean:linux": "rimraf dist/linux* dist/*.deb dist/*.AppImage",
     "clean:osx": "rimraf dist/mac",
