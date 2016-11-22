@@ -2,14 +2,13 @@ language: node_js
 sudo: false
 node_js:
   - "6"
-before_script:
-  - --chmod=+x ./push-docs-to-gh.sh
 script:
+  - --chmod=+x ./push-docs-to-gh.sh
   - npm install
   - npm run coverage
   - npm run docs
-  - npm run coverage:codeclimate
 after_success:
+  - npm run coverage:codeclimate
   - ./push-docs-to-gh.sh
 addons:
     apt:
