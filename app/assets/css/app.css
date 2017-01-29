@@ -22,3 +22,37 @@ body {
 .ui-text {
     -webkit-user-select: none;
 }
+
+.pane.sidebar .list-group .list-group-item{
+    border: none;
+    border-top: 1px solid #ddd;
+    background-color: rgba(0,0,0,0);
+}
+.pane.sidebar .list-group  .list-group-item.active, 
+.pane.sidebar .list-group .list-group-item.selected {
+    color: #fff;
+    background-color: #116cd6;
+}
+
+
+.pane.sidebar .list-group .list-group-item:last-child{
+    border-bottom:1px solid #ddd
+}
+
+div.pane.sidebar + div.pane{
+    padding-left: 10px;
+}
+
+.pane.sidebar .list-group .list-group-item .icon{
+    margin-right: 5px;
+}
+
+/* indicator step1 */
+.container.indicator-step-1 h4{
+    margin-top: 0;
+}
+
+table.table tr.selected,
+table.table-striped tr.selected{
+    background-color: #6eb4f7;
+}
