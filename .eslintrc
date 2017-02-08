@@ -8,6 +8,7 @@
     "browser": true,
     "node": true,
     "mocha": true,
-    "amd":true
+    "amd":true,
+    "es6": true
   }
 }

@@ -17,7 +17,7 @@
     "unit": "eslint test/** && mocha test/unit --recursive",
     "integration": "eslint test/** && mocha test/integration --recursive",
     "coverage": "istanbul cover node_modules/.bin/_mocha -- --recursive",
-    "coverage:codeclimate":"CODECLIMATE_REPO_TOKEN=$CODECLIMATE_REPO_TOKEN node_modules/.bin/codeclimate-test-reporter < coverage/lcov.info",
+    "coverage:codeclimate": "CODECLIMATE_REPO_TOKEN=$CODECLIMATE_REPO_TOKEN node_modules/.bin/codeclimate-test-reporter < coverage/lcov.info",
     "depcheck": "dependency-check app --entry main.js --unused --no-dev",
     "lint": "eslint app/main.js app/preload.js app/assets/js test/**",
     "docs": "node_modules/.bin/jsdoc -c jsdoc.json",
@@ -104,5 +104,12 @@
     "rimraf": "^2",
     "shelljs": "^0.7",
     "spectron": "^3"
+  },
+  "dependencies": {
+    "babyparse": "^0.4.6",
+    "load-json-file": "^2.0.0",
+    "mongo-control": "^1.0.64",
+    "mssql": "^3.3.0",
+    "mysql": "^2.13.0"
   }
 }

@@ -16,7 +16,8 @@
     "electron-debug": "^1",
     "electron-is-dev": "^0.1",
     "electron-window-state": "^3",
-    "lodash": "^4"
+    "lodash": "^4",
+    "xlsx": "^0.8.2"
   },
   "config": {
     "url": "index.html",

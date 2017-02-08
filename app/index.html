@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <title>Migrador de datos CMI</title>
     <link rel="stylesheet" href="assets/css/app.css">
-    <!--<link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css">-->
+    <link rel="stylesheet" href="bower_components/datatables.net-bs/css/dataTables.bootstrap.min.css">
+    <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="bower_components/photon/dist/css/photon.min.css">
   </head>
   <body>
@@ -270,6 +271,9 @@
                 </div>
               </div>
             </div>
+            <div class="container">
+              <table class="view"></table>
+            </div>
           </div>
         </div>
       </div>
@@ -286,11 +290,16 @@
       </footer>      
     </div>
   </body>
+  <script>window.$ = window.jQuery = require('./bower_components/jquery/dist/jQuery.min.js');</script>
+  <script src="bower_components/datatables.net/js/jQuery.dataTables.min.js"></script>
+  <script src="bower_components/datatables.net-bs/js/dataTables.bootstrap.min.js"></script>
   <script>
     // You can also require other files to run in this process
+    require('./renderer.js')
     require('./assets/js/ex-links.js')
     require('./assets/js/notifications.js')
     require('./assets/js/actions/zoom.js')
     require('./assets/js/context-menu.js')
   </script>
+
 </html>
