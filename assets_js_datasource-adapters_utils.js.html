@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Home</title>
+    <title>JSDoc: Source: assets/js/datasource-adapters/utils.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,32 +17,48 @@
 
 <div id="main">
 
-    <h1 class="page-title">Home</h1>
+    <h1 class="page-title">Source: assets/js/datasource-adapters/utils.js</h1>
 
     
 
 
 
     
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ *
+ *
+ * @returns {Object} Modulo con todas las operaciones cross aplicacion
+ */
+function utils() {
 
 
-    <h3> </h3>
+  /**
+   * @name setConnString
+   * @description De acuerdo al protocolo crea la cadena de conexion necesaria para conectar al servidor de base de datos
+   * @param {Object} options Parametros necesarios para conectarse a la base de datos (host, database, user, password)
+   * @returns {String} cadena de conexion valida para el motor de base de datos
+   */
+  function setConnString( options ) {
+    var userPassword = '';
 
+    if ( options.user &amp;&amp; options.password ) {
+      userPassword = `${options.user}:${options.password}@`;
+    }
 
+    return `${options.protocol}://${userPassword}${options.host}:${options.port}/${options.database}`;
+  }
 
+  return {
+    setConnString: setConnString
+  };
+}
 
-
-
-
-
-
-
-    
-
-
-
-
-
+module.exports = utils();
+</code></pre>
+        </article>
+    </section>
 
 
 

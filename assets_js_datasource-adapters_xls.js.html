@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: assets/js/datasource-adapters/xls.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: assets/js/datasource-adapters/xls.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>var xlsx = require( 'xlsx' ),
+  _ = require( 'lodash' );
+
+/**
+ * Excel Adapter de datasource en data-collector
+ *
+ * @returns {Object} Modulo de manejo de datos para planillas de excel
+ */
+function excelAdapter() {
+
+  var options = {
+      getFirstTableData: true,
+      filePath: ''
+    },
+    workbook;
+
+  /**
+   * @name setDataSource
+   * @description Realiza las operaciones necesarias para conectarse al datasource
+   * @param {Object} params - Opciones:
+   *  getFirstTableData {Boolean} Obtiene las columnas y todas las filas de la primer tabla en la lista de tablas.
+   *  filePath: Url del path donde se encuentra el archivo a leer
+   * @returns {Promise} Promesa que se resuelva al obtener los datos del datasource: Listado de tablas y primera tabla (definicion y datos si fueron solicitados)
+   */
+  function setDataSource( params ) {
+    // TESTS:
+        // VERIFICAR QUE SE PUEDE ABRIR UN XLS Y UN XLSX
+        // VERIFICAR QUE SE DEVUELVE LA LISTA DE TABLAS
+        // VERIFICAR QUE SE DEVUELVE UNA TABLA Y SU DEFINICION
+    var result = {
+      tableNames: []
+    };
+
+    // combinar todas los parametros con las opciones para sobreescribir valores por defecto
+    _.merge( options, params );
+
+    // retornamos una promesa, ideal en el caso de operaciones asincronicas
+    return new Promise( function promise( resolve, error ) {
+
+      try {
+
+        // leemos el archivo
+        workbook = xlsx.readFile( options.filePath );
+        // en este caso les llamamos tablas a cada hoja del excel
+        result.tableNames = workbook.SheetNames;
+
+        // si en las opciones se pide obtener los datos y especificacion de la primera tabla ejecutamos esto
+        if ( options.getFirstTableData &amp;&amp; result.tableNames.length ) {
+
+          // devolvemos la primer tabla
+          return getTableData( options, result.tableNames[ 0 ] )
+                      .then( function onTableDataResolved( firstTable ) {
+                        result.table = firstTable;
+                        resolve( result );
+                        return result.table;
+                      } );
+        }
+
+        // si no se pide la primer tabla, o no hay tablas, solo devolvemos el detalle de tablas/hojas
+        resolve( result );
+        return result;
+
+      } catch ( exception ) {
+        // en caso de error, la promesa escalara el error hacia sus subscriptores
+        error( exception );
+      }
+    } );
+  }
+
+    // TESTS:
+        // VERIFICAR QUE SE DEVUELVEN TODAS LAS COLUMNAS
+        // VERIFICAR QUE SE DEVUELVE EL HEADER
+        // PROBAR EL CASO DONDE EL EXCEL NO TIENE HOJAS
+        // PROBAR EL CASO DONDE EL EXCEL NO TIENE LA HOJA ESPECIFICADA
+    // TODO:
+        // ENVIAR COLUMN DATA TYPE
+  /**
+   * @name getTableData
+   * @description obtiene las columnas y el conjunto de filas para la tabla especificada.
+   * @param {Object} params Opciones y configuracion para las tablas, filePath
+   * @param {String} tableName Tabla/Hoja de la que se desean extraer los datos
+   * @returns {Object}
+   * {
+   *  data {Array}: Filas con todos los valores,
+   *  columns {Array}: Especificacion de columnas (titulo, data, y tipo de dato)
+   * }
+   */
+  function getTableData( params, tableName ) {
+    var worksheet,
+      rowData = [],
+      oldRow = 0,
+      cellAddress,
+      result = {
+        data: [],
+        columns: []
+      },
+      currentRow;
+
+    // retornamos una promesa, ideal en el caso de operaciones asincronicas
+    return new Promise( function onTableData( resolve, error ) {
+      try {
+
+        // si todavia no se leyo el archivo, leemos el mismo.
+        if ( !workbook ) {
+          _.merge( options, params );
+          workbook = xlsx.readFile( options.filePath );
+        }
+
+        // obtenemos una referencia a la tabla solicitada
+        worksheet = workbook.Sheets[ tableName ]
+
+        // si el excel no tiene hojas, devolvemos una respuesta vacia
+        if ( !worksheet ) {
+          resolve( result );
+          return result;
+        }
+
+        // recorremos todas las celdas de la hoja
+        for ( cellAddress in worksheet ) {
+          // las celdas que empiezan con '!' son las que contienen metada
+          if ( cellAddress[ 0 ] === '!' ) {
+            continue;
+          }
+          // obtenemos el numero de fila de la celda actual
+          currentRow = xlsx.utils.decode_cell( cellAddress ).r;
+
+          if ( oldRow !== currentRow ) {
+            // hubo un cambio de fila
+            oldRow = currentRow;
+
+            if ( currentRow === 1 ) {
+              // si la fila nueva es la 1 (o sea la segunda),
+              // cargamos la primera fila (0), como la cabecera de la tabla
+              result.columns = rowData.map( function mapRow( row ) {
+                return {
+                  title: row
+                };
+              } );
+
+            } else {
+              // agregamos la fila a la coleccion de filas
+              result.data.push( rowData );
+            }
+            // borramos la fila temporal, para la nueva fila
+            rowData = [];
+          }
+
+          // agregamos el valor de cada celda a la fila actual
+          rowData.push( worksheet[ cellAddress ].v );
+        }
+
+        resolve( result );
+      } catch ( exception ) {
+        error( exception );
+      }
+    } );
+  }
+
+  return {
+    setDataSource: setDataSource,
+    getTableData: getTableData
+  }
+
+}
+
+
+module.exports = excelAdapter;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#createMenu">createMenu</a></li><li><a href="global.html#csvAdapter">csvAdapter</a></li><li><a href="global.html#disableZoomUI">disableZoomUI</a></li><li><a href="global.html#enableZoomUI">enableZoomUI</a></li><li><a href="global.html#excelAdapter">excelAdapter</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getTableData">getTableData</a></li><li><a href="global.html#getTables">getTables</a></li><li><a href="global.html#getZoomUI">getZoomUI</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#jsonAdapter">jsonAdapter</a></li><li><a href="global.html#makeSingleInstance">makeSingleInstance</a></li><li><a href="global.html#mongoAdapter">mongoAdapter</a></li><li><a href="global.html#mssqlAdapter">mssqlAdapter</a></li><li><a href="global.html#multiplicacion">multiplicacion</a></li><li><a href="global.html#mySqlAdapter">mySqlAdapter</a></li><li><a href="global.html#onClosed">onClosed</a></li><li><a href="global.html#onConnectionError">onConnectionError</a></li><li><a href="global.html#resta">resta</a></li><li><a href="global.html#setConnection">setConnection</a></li><li><a href="global.html#setConnString">setConnString</a></li><li><a href="global.html#setDataSource">setDataSource</a></li><li><a href="global.html#setupConnection">setupConnection</a></li><li><a href="global.html#suma">suma</a></li><li><a href="global.html#utils">utils</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a> on Wed Feb 08 2017 07:41:25 GMT+0000 (UTC)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

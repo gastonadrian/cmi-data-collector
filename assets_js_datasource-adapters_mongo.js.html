@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: assets/js/datasource-adapters/mongo.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: assets/js/datasource-adapters/mongo.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>var mongoControl = require( 'mongo-control' ),
+  _ = require( 'lodash' ),
+  utils = require( './utils' );
+
+/**
+ *
+ *
+ * @returns {Object} Modulo con toda la funcionalidad necesaria para poder consumir bases de datos mongo
+ */
+function mongoAdapter() {
+
+  var options = {
+      getFirstTableData: true,
+      protocol: 'mongodb',
+      user: '',
+      password: '',
+      host: '',
+      port: 0,
+      database: ''
+    },
+    connString;
+
+    // TESTS:
+        // VERIFICAR QUE SE PUEDE CONECTAR A UNA BD
+        // PROBAR UNA BD QUE NO TIENE COLECCIONES
+        // PEDIR SOLO LAS TABLAS
+
+  /**
+   * @name setDataSource
+   * @description conecta al servidor especificado, devuelve la lista de tablas (colecciones en este caso) y la primer coleccion en caso de que se haya proporcionado ese dato
+   * @param {Object} params Parametros de conexion al servidor de base de datos
+   * @returns {Promise} Promesa que se resuelve asincronicamente al finalizar las consultas a la base de datos. El objeto de la promesa devuelve:
+   * {
+   *  tableNames {Array&lt;String>} Lista de las colecciones/tablas de la base de datos
+   *  table: {Object} Objeto que contiene las columnas y filas de la primera coleccion/tabla (En caso que en los parametros se pida la primer tabla)
+   * }
+   */
+  function setDataSource( params ) {
+    var colIndex,
+      result = {
+        tableNames: [],
+        table: {
+          data: [],
+          columns: []
+        }
+      };
+
+      // combinamos los parametros en las opciones para sobreescribir valores por defecto
+    _.merge( options, params );
+    // obtenemos la cadena de conexion
+    connString = utils.setConnString( options );
+
+    // obtenemos la lista de colecciones
+    return mongoControl.listCollections( { db: connString } )
+      .then( function onListCollections( collections ) {
+        // se agregan todas las colecciones, salvo system.indexes que contiene metadata sobre la base de datos
+        for ( colIndex in collections ) {
+          if ( collections[ colIndex ].name !== 'system.indexes' ) {
+            result.tableNames.push( collections[ colIndex ].name );
+          }
+        }
+
+        // devolvemos los resultados parciales al pipe de la promesa
+        return result.tableNames;
+      } )
+      .then( function onListCollectionsResolved( tables ) {
+        if ( options.getFirstTableData &amp;&amp; tables.length ) {
+          // si se solicito la primer tabla
+          return getTableData( options, tables.tableNames[ 0 ] )
+            .then( function onGetFirstTable( collectionData ) {
+              result.table = collectionData;
+              // devolvemos todo el objeto
+              return result;
+            } );
+        }
+      } );
+  }
+
+    // TESTS:
+        // VERIFICAR QUE SE DEVUELVEN TODAS LAS COLUMNAS
+        // VERIFICAR QUE SE DEVUELVE EL HEADER
+        // PROBAR CON UNA COLECCION QUE NO EXISTE
+  /**
+   * @name getTableData
+   * @description Obtiene los datos (columnas y filas) de la tabla solicitada
+   * @param {Object} params Opciones para conectarse con la base de datos
+   * @param {String} tableName Nombre de la coleccion/tabla solicitada
+   * @param {Number} limit Cantidad maxima de filas pedidas
+   * @param {Object} projection Si se va a utilizar una projeccion para traer los datos
+   * @param {String} query Si se va a utilizar una query para obtener los datos
+   * @returns {Object} Objeto con tabla(filas) y columnas para la tabla pedida.
+   */
+  function getTableData( params, tableName, limit, projection, query ) {
+    var settings = {
+        db: connString,
+        collection: tableName,
+        limit: limit || 100,
+        projection: projection || {},
+        query: query || {}
+      },
+      result = {
+        data: [],
+        columns: []
+      },
+      i;
+
+    _.merge( options, params );
+    connString = utils.setConnString( options );
+
+    return mongoControl.find( settings ).then( function onData( collectionData ) {
+      // si la coleccion existe
+      if ( collectionData &amp;&amp; collectionData.length ) {
+
+        // por cada columna armar la definicion
+        for ( i in collectionData[ 0 ] ) {
+
+          // no agregamos la columnas que empiezan con _id (internas de mongo)
+          if ( i === '_id' ) {
+            continue;
+          }
+
+          result.columns.push( {
+            title: i,
+            data: i
+          } );
+        }
+        result.data = collectionData;
+      }
+      return result;
+    } );
+  }
+
+  return {
+    setDataSource: setDataSource,
+    getTableData: getTableData
+  };
+}
+
+module.exports = mongoAdapter;
+
+
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#createMenu">createMenu</a></li><li><a href="global.html#csvAdapter">csvAdapter</a></li><li><a href="global.html#disableZoomUI">disableZoomUI</a></li><li><a href="global.html#enableZoomUI">enableZoomUI</a></li><li><a href="global.html#excelAdapter">excelAdapter</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getTableData">getTableData</a></li><li><a href="global.html#getTables">getTables</a></li><li><a href="global.html#getZoomUI">getZoomUI</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#jsonAdapter">jsonAdapter</a></li><li><a href="global.html#makeSingleInstance">makeSingleInstance</a></li><li><a href="global.html#mongoAdapter">mongoAdapter</a></li><li><a href="global.html#mssqlAdapter">mssqlAdapter</a></li><li><a href="global.html#multiplicacion">multiplicacion</a></li><li><a href="global.html#mySqlAdapter">mySqlAdapter</a></li><li><a href="global.html#onClosed">onClosed</a></li><li><a href="global.html#onConnectionError">onConnectionError</a></li><li><a href="global.html#resta">resta</a></li><li><a href="global.html#setConnection">setConnection</a></li><li><a href="global.html#setConnString">setConnString</a></li><li><a href="global.html#setDataSource">setDataSource</a></li><li><a href="global.html#setupConnection">setupConnection</a></li><li><a href="global.html#suma">suma</a></li><li><a href="global.html#utils">utils</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a> on Wed Feb 08 2017 07:41:25 GMT+0000 (UTC)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

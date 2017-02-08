@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Home</title>
+    <title>JSDoc: Source: assets/js/datasource-adapters/json.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,32 +17,80 @@
 
 <div id="main">
 
-    <h1 class="page-title">Home</h1>
+    <h1 class="page-title">Source: assets/js/datasource-adapters/json.js</h1>
 
     
 
 
 
     
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>var loadJsonFile = require( 'load-json-file' ),
+  _ = require( 'lodash' );
+
+/**
+ *
+ *
+ * @returns {Object} Modulo con toda la funcionalidad para conectarse con archivos JSON
+ */
+function jsonAdapter() {
+
+  var options = {
+    getFirstTableData: true,
+    filePath: ''
+  };
+
+    // TESTS:
+        // VERIFICAR QUE SE DEVUELVEN TODAS LAS COLUMNAS
+        // VERIFICAR QUE SE DEVUELVE EL HEADER
+    // TODO:
+        // ENVIAR COLUMN DATA TYPE
+  /**
+   * @name getTableData
+   * @description Obtiene los datos del archivo JSON
+   * @param {Object} params Configuracion, url del archivo
+   * @returns {Promise} Promesa con las filas del archivo
+   */
+  function getTableData( params ) {
+    var result = {
+        table: {
+          columns: [],
+          data: []
+        }
+      },
+      column;
+
+    _.merge( options, params );
+
+    return loadJsonFile( options.filePath )
+      .then( function onLoadJsonFile( data ) {
+        if ( data &amp;&amp; data.length ) {
+          for ( column in data[ 0 ] ) {
+            result.table.columns.push( {
+              title: column,
+              data: column
+            } );
+          }
+        }
+
+        result.table.data = data;
+        return result;
+      } );
+  }
+
+  return {
+    setDataSource: getTableData,
+    getTableData: getTableData
+  };
+
+}
 
 
-    <h3> </h3>
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
+module.exports = jsonAdapter;
+</code></pre>
+        </article>
+    </section>
 
 
 
