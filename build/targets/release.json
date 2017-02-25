@@ -1,3 +1,6 @@
 {
-    "debug": false
+    "debug": false,
+    "APIPORT":8080,
+    "APIHOST":"localhost",
+    "APIPREFIX":"api"    
 }

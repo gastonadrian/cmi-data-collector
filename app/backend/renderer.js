@@ -33,6 +33,11 @@ init();
  * @returns {void}
  */
 function init() {
+  ipcRenderer.on( 'init-params', ( event, arg ) => {
+    console.log( 'init event', event );
+    console.log( 'init args', arg );
+  } );
+
   ipcRenderer.on( 'connect-database', ( event, arg ) => {
     processDataSource( arg.engine, arg )
         .then( function onDatabaseConnect( data ) {

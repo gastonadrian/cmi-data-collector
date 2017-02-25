@@ -36,7 +36,9 @@ let isDev = ( require( 'electron-is-dev' ) || pjson.config.debug ),
   // Prevent window being garbage collected
   mainWindow,
   // Other windows we may need
-  infoWindow = null
+  infoWindow = null,
+  // usado para cuando se abre la app con deep-linking
+  urlData;
 
 global.appSettings = pjson.config
 
@@ -59,7 +61,8 @@ require( 'electron-debug' )( {
 app.setName( pjson.productName || 'SkelEktron' )
 
 /**
- * @returns { Boolean } quit the apps
+ * @name initialize
+ * @returns {void}
  */
 function initialize() {
   var shouldQuit = makeSingleInstance()
@@ -169,11 +172,14 @@ function initialize() {
     }
   } )
 
-  app.setAsDefaultProtocolClient( 'electron' );
+  app.setAsDefaultProtocolClient( 'data-collector' );
+
   app.on( 'ready', () => {
     Menu.setApplicationMenu( createMenu() )
     mainWindow = createMainWindow()
 
+    // enviar todos los datos que no fueron posibles anteriormente xq no se habia creado mainWindow;
+    handleUrl();
 
     // Manage automatic updates
     try {
@@ -206,9 +212,37 @@ function initialize() {
       console.error( e.message )
       dialog.showErrorBox( 'Update Error', e.message )
     }
+
   } )
 
   app.on( 'will-quit', () => {} )
+
+  if ( process.platform === 'darwin' ) {
+    app.on( 'open-url', handleUrl );
+  } else {
+    handleUrl( {}, [ process.argv, process.argv0, process.execArgv ] );
+  }
+
+  /**
+   * @name handleUrl
+   * @description Envia al proceso principal la ruta elegida en deeplinking para abrir la aplicacion
+   * @param {any} event - Evento
+   * @param {any} params - Url a enviar al proceso renderer
+   * @returns {void}
+   */
+  function handleUrl( event, params ) {
+
+    if ( !mainWindow || !mainWindow.webContents ) {
+      urlData = params;
+      return;
+    }
+
+    if ( !params ) {
+      params = urlData;
+    }
+
+    mainWindow.webContents.send( 'init-params', params );
+  }
 
   ipc.on( 'open-info-window', () => {
     if ( infoWindow ) {

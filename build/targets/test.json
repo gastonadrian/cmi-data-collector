@@ -1,1 +1,5 @@
-{}
+{
+    "APIPORT":8080,
+    "APIHOST":"localhost",
+    "APIPREFIX":"api"
+}
