@@ -10,5 +10,8 @@
     "mocha": true,
     "amd":true,
     "es6": true
+  },
+  "globals":{
+    "angular":1
   }
 }

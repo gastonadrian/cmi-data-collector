@@ -1,0 +1,73 @@
+<md-dialog aria-label="Conectar con base de datos">
+  <form name="addDatabaseForm" data-ng-submit="addDatabase.ok()" novalidate>
+    <md-toolbar>
+      <div class="md-toolbar-tools">
+        <h2>Conectar con base de datos</h2>
+        <span flex></span>
+        <md-button class="md-icon-button" ng-click="addDatabase.cancel()">
+          <ng-md-icon icon="close" aria-label="Close dialog"></ng-md-icon>
+        </md-button>
+      </div>
+    </md-toolbar>
+
+    <md-dialog-content>
+      <div class="md-dialog-content" flex layout="column">
+          <md-input-container data-ng-show="addDatabase.error" class="md-input-invalid">
+            <label style="white-space: normal; margin-bottom: 10px;">{{addDatabase.error}}</label>
+          </md-input-container>
+          <md-input-container>
+            <label>Motor de base de datos</label>
+            <md-select  name="engine" required data-ng-model="addDatabase.form.engine" placeholder="Elija un motor de base de datos">
+                <md-option data-ng-value="opt.value" data-ng-repeat="opt in addDatabase.supportedEngines">{{ opt.title }}</md-option>
+            </md-select>
+            <div ng-messages="addDatabaseForm.engine.$error">
+              <div ng-message="required">El campo es requerido!</div>
+            </div>
+          </md-input-container>
+          <md-input-container>
+            <label>Dominio</label>
+            <input type="text" data-ng-model="addDatabase.form.host" required name="host">
+            <div ng-messages="addDatabaseForm.host.$error">
+              <div ng-message="required">El campo es requerido!</div>
+            </div>
+          </md-input-container>
+          <md-input-container>
+            <label>Puerto</label>
+            <input type="number" data-ng-model="addDatabase.form.port" required name="port">
+            <div ng-messages="addDatabaseForm.port.$error">
+              <div ng-message="required">El campo es requerido!</div>
+            </div>
+          </md-input-container> 
+          <md-input-container>
+            <label>Base de datos</label>
+            <input type="text" data-ng-model="addDatabase.form.database" required name="schema">
+            <div ng-messages="addDatabaseForm.schema.$error" data-ng-if="addDatabaseForm.schema.$dirty">
+              <div ng-message="required">El campo es requerido!</div>
+            </div>
+          </md-input-container> 
+          <md-input-container>
+            <label>Usuario</label>
+            <input type="text" data-ng-model="addDatabase.form.user" required name="user">
+            <div ng-messages="addDatabaseForm.user.$error">
+              <div ng-message="required">El campo es requerido!</div>
+            </div>
+          </md-input-container>
+          <md-input-container>
+            <label>Contrase&ntilde;a</label>
+            <input type="password" data-ng-model="addDatabase.form.password" name="password">
+          </md-input-container>
+          <md-progress-linear md-mode="indeterminate" data-ng-show="addDatabase.processingConnection"></md-progress-linear>
+      </div>
+    </md-dialog-content>
+    
+    <md-dialog-actions layout="row">
+    <md-button type="submit" class="md-primary"
+      data-ng-disabled="addDatabase.processingConnection"
+      data-ng-class="{'md-raised md-hue-1': (addDatabaseForm.$dirty && addDatabaseForm.$valid) }"
+      aria-label="Guardar Base de datos">Conectar</md-button>
+      <md-button data-ng-click="addDatabase.cancel()">
+        Cancelar
+      </md-button>
+    </md-dialog-actions>
+  </form>
+</md-dialog>

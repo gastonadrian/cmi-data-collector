@@ -17,10 +17,14 @@
     "electron-is-dev": "^0.1",
     "electron-window-state": "^3",
     "lodash": "^4",
+    "moment": "^2.17.1",
+    "mssql": "^3.3.0",
+    "mysql": "^2.13.0",
+    "request": "^2.79.0",
     "xlsx": "^0.8.2"
   },
   "config": {
-    "url": "index.html",
+    "url": "./client/backup.html",
     "update": {
       "url": false
     }

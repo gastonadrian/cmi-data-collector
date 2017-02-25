@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Migrador de datos CMI</title>
+    <link rel="stylesheet" href="./css/app.css">
+    <link rel="stylesheet" href="./../bower_components/datatables.net-bs/css/dataTables.bootstrap.min.css">
+    <link rel="stylesheet" href="./../bower_components/bootstrap/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="./../bower_components/photon/dist/css/photon.min.css">
+  </head>
+  <body>
+    <!-- Wrap your entire app inside .window -->
+    <div class="window">
+      <!-- .toolbar-header sits at the top of your app -->
+      <header class="toolbar toolbar-header">
+        <h1 class="title">Configurar Indicador: Tiempo de espera</h1>
+      </header>
+
+      <!-- Your app's content goes inside .window-content -->
+      <div class="window-content">
+        <div class="pane-group">
+          <div class="pane pane-sm sidebar">
+            <ul class="list-group">
+              <h5 class="nav-group-title">Bases de datos conectadas</h5>
+              <li class="list-group-header">
+                <input class="form-control" type="text" placeholder="Buscar">
+              </li>
+              <li class="list-group-item">
+                <div class="media-body">
+                  <span class="pull-left icon icon-database" style="margin-right: 5px"></span>
+                  <p>Ventas</p>
+                </div>
+              </li>
+              <li class="list-group-item">
+                <div class="media-body">
+                  <span class="pull-left icon icon-database" style="margin-right: 5px"></span>
+                  <p>Recursos Humanos</p>
+                </div>
+              </li>
+              <li class="list-group-item">
+                <div class="media-body">
+                  <span class="pull-left icon icon-database" style="margin-right: 5px"></span>
+                  <p>Soporte T&eacute;cnico</p>
+                  <ul class="list-group">
+                    <li class="list-group-item active">
+                      <div class="media-body">
+                        <p>Llamadas</p>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </li>                            
+            </ul>            
+            <ul class="list-group">
+              <h5 class="nav-group-title">Otras fuentes de datos</h5>
+              <li class="list-group-header">
+                <input class="form-control" type="text" placeholder="Buscar">
+              </li>
+              <li class="list-group-item">
+                <div class="media-body">
+                  <span class="pull-left icon icon-doc-text-inv" style="margin-right: 5px"></span>
+                  <p>Estimaciones 2017</p>
+                </div>
+              </li>
+              <li class="list-group-item">
+                <div class="media-body">
+                  <span class="pull-left icon icon-doc-text-inv" style="margin-right: 5px"></span>
+                  <p>Reporte de reparaciones</p>
+                </div>
+              </li>
+            </ul>            
+          </div>
+          <div class="pane">
+            <form class="padded-less">
+              <div class="form-group">
+                <label>Nombre</label>
+                <input type="text" class="form-control" placeholder="Nombre del indicador" value="Tiempo de espera">
+              </div>
+              <div class="form-group">
+                <label>Unidad de medida</label>
+                <select class="form-control">
+                  <option>minutos</option>
+                </select>                  
+              </div>
+              <div class="form-group">
+                <label>Operacion sobre filas</label>
+              </div>
+              <div class="radio">
+                <label>
+                  <input type="radio" name="radios">
+                  Suma
+                </label>
+              </div>
+              <div class="radio">
+                <label>
+                  <input type="radio" name="radios" checked>
+                  Promedio
+                </label>
+              </div>
+            </form>
+            <div class="container indicator-step-1" style="display: none">
+              <div class="row">
+                <h4>Base de datos: Soporte T&eacute;cnico, Tabla: Llamadas</h4>
+                <h5>Vista Previa de datos:</h5>
+                <table class="table-striped">
+                  <thead>
+                    <tr>
+                      <th>Id</th>
+                      <th>Fecha</th>
+                      <th>Locacion</th>
+                      <th>SoporteId</th>
+                      <th>ClienteId</th>
+                      <th>Duracion</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>422</td>
+                      <td>08-Ene-08</td>
+                      <td>Buenos Aires</td>
+                      <td>3</td>
+                      <td>10515</td>
+                      <td>0,7</td>
+                    </tr>
+                    <tr>
+                      <td>423</td>
+                      <td>09-May-08</td>
+                      <td>Buenos Aires</td>
+                      <td>3</td>
+                      <td>83442</td>
+                      <td>0,17</td>
+                    </tr>
+                    <tr>
+                      <td>424</td>
+                      <td>17-Sept-10</td>
+                      <td>Corrientes</td>
+                      <td>2</td>
+                      <td>141176</td>
+                      <td>0,1</td>
+                    </tr>
+                    <tr>
+                      <td>425</td>
+                      <td>23-Jun-10</td>
+                      <td>Buenos Aires</td>
+                      <td>4</td>
+                      <td>69483</td>
+                      <td>0,5</td>
+                    </tr>
+                    <tr>
+                      <td>426</td>
+                      <td>08-Ene-08</td>
+                      <td>Moron</td>
+                      <td>5</td>
+                      <td>25280</td>
+                      <td>0,4</td>
+                    </tr>
+                    <tr>
+                      <td>427</td>
+                      <td>08-Ene-08</td>
+                      <td>Paz</td>
+                      <td>8</td>
+                      <td>97474</td>
+                      <td>0,1</td>
+                    </tr>
+                    <tr>
+                      <td>428</td>
+                      <td>08-Ene-08</td>
+                      <td>La Matanza</td>
+                      <td>23</td>
+                      <td>32061</td>
+                      <td>0,8</td>
+                    </tr>
+                    <tr>
+                      <td>429</td>
+                      <td>08-Ene-08</td>
+                      <td>Hurlingham</td>
+                      <td>112</td>
+                      <td>68211</td>
+                      <td>0,2</td>
+                    </tr>
+                    <tr>
+                      <td>430</td>
+                      <td>08-Ene-08</td>
+                      <td>Rosario</td>
+                      <td>15</td>
+                      <td>29715</td>
+                      <td>0,14</td>
+                    </tr>
+                    <tr>
+                      <td>431</td>
+                      <td>08-Ene-08</td>
+                      <td>Buenos Aires</td>
+                      <td>85</td>
+                      <td>80030</td>
+                      <td>0,28</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <h5>A continuaci&oacute;n le pediremos configure los campos de los cuales desea extraer los datos.</h5>
+              </div>
+            </div>
+            <div class="container indicator-step-2">
+              <div class="row">
+                <h4>Base de datos: Soporte T&eacute;cnico, Tabla: Llamadas</h4>
+                <h5>Elegir campos:</h5>
+                <table class="table-striped">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Tipo de Dato</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                      <tr>
+                        <td>Id</td>
+                        <td>Number</td>
+                        <td>
+                          <!--<button class="btn btn-large btn-default">Elegir como fecha</button>
+                          <button class="btn btn-large btn-primary">Elegir como valor</button>-->
+                        </td>
+                      </tr>
+                      <tr class="selected">
+                        <td>Fecha</td>
+                        <td>DateTime</td>
+                        <td>
+                          <p>Representa la fecha</p>
+                          <!--<button class="btn btn-large btn-default">Elegir como fecha</button>
+                          <button class="btn btn-large btn-primary">Elegir como valor</button>-->
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Locacion</td>
+                        <td>Number</td>
+                        <td>
+                          <!--<button class="btn btn-large btn-default">Elegir como fecha</button>
+                          <button class="btn btn-large btn-primary">Elegir como valor</button>-->
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>SoporteId</td>
+                        <td>Number</td>
+                        <td>
+                          <!--<button class="btn btn-large btn-default">Elegir como fecha</button>
+                          <button class="btn btn-large btn-primary">Elegir como valor</button>-->
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>ClienteId</td>
+                        <td>Number</td>
+                        <td>
+                          <!--<button class="btn btn-large btn-default">Elegir como fecha</button>
+                          <button class="btn btn-large btn-primary">Elegir como valor</button>-->
+                        </td>
+                      </tr>
+                      <tr class="selected">
+                        <td>Duracion</td>
+                        <td>Number</td>
+                        <td>
+                          <p>Representa el valor</p>
+                          <!--<button class="btn btn-large btn-default">Elegir como fecha</button>
+                          <button class="btn btn-large btn-primary">Elegir como valor</button>-->
+                        </td>
+                      </tr>
+                  </tbody>
+                </table>
+                <h5>Si desea realizar una operacion matem&aacute;tica sobre el campo valor escribala en el siguiente campo</h5>
+                <div class="form-group">
+                  <label>Ejemplo: Para convertir hora en minutos escriba: valor * 60</label>
+                  <input type="text" class="form-control" placeholder="valor representa al registro" value="valor * 60">
+                </div>
+              </div>
+            </div>
+            <div class="container">
+              <table class="view"></table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <footer class="toolbar toolbar-footer">
+        <div class="toolbar-actions">
+          <button class="btn btn-default">
+            Atr&aacute;s
+          </button>
+
+          <button class="btn btn-primary pull-right">
+            Guardar
+          </button>
+        </div>
+      </footer>      
+    </div>
+  </body>
+  <script>window.$ = window.jQuery = require('./bower_components/jquery/dist/jQuery.min.js');</script>
+  <script src="bower_components/datatables.net/js/jQuery.dataTables.min.js"></script>
+  <script src="bower_components/datatables.net-bs/js/dataTables.bootstrap.min.js"></script>
+  <script>
+    // You can also require other files to run in this process
+    require('./renderer.js')
+    require('./assets/js/ex-links.js')
+    require('./assets/js/notifications.js')
+    require('./assets/js/actions/zoom.js')
+    require('./assets/js/context-menu.js')
+  </script>
+
+</html>

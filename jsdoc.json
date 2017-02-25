@@ -3,7 +3,7 @@
         "allowUnknownTags": false
     },
     "source": {
-        "include": ["app/assets/js", "app/main.js", "app/preload.js"],
+        "include": ["app/backend", "app/client", "app/main.js", "app/preload.js"],
         "includePattern": ".js$",
         "excludePattern": "(node_modules/|docs)"
     },

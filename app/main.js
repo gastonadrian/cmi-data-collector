@@ -51,7 +51,8 @@ console.debug( JSON.stringify( pjson.config ) )
 // Adds debug features like hotkeys for triggering dev tools and reload
 // (disabled in production, unless the menu item is displayed)
 require( 'electron-debug' )( {
-  enabled: pjson.config.debug || isDev || false
+  // enabled: pjson.config.debug || isDev || false
+  enabled: true
 } )
 
 
@@ -102,7 +103,7 @@ function initialize() {
       'webPreferences': {
         // Disabling node integration allows to use libraries such as jQuery/React, etc
         'nodeIntegration': pjson.config.nodeIntegration || true,
-        'preload': path.resolve( path.join( __dirname, 'preload.js' ) )
+        'preload': path.resolve( path.join( __dirname, '/backend/preload.js' ) )
       }
     } )
 
@@ -168,9 +169,11 @@ function initialize() {
     }
   } )
 
+  app.setAsDefaultProtocolClient( 'electron' );
   app.on( 'ready', () => {
     Menu.setApplicationMenu( createMenu() )
     mainWindow = createMainWindow()
+
 
     // Manage automatic updates
     try {
@@ -222,6 +225,15 @@ function initialize() {
       infoWindow = null
     } )
   } )
+
+  // Listen for sync message from renderer process
+  ipc.on( 'electron-msg', ( event, arg ) => {
+    mainWindow.webContents.send( arg.msg, arg.data );
+  } );
+
+  ipc.on( 'renderer-msg', ( event, arg ) => {
+    mainWindow.webContents.send( 'electron-msg', arg );
+  } );
 }
 
 /**

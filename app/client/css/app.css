@@ -1,0 +1,195 @@
+/* Add styles for your app here */
+
+/* Use UI System fonts and colors,
+   see: https://www.sitepoint.com/css-system-styles/ */
+
+html, body{
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/*body {
+    font: caption;
+    color: WindowText;
+    background-color: Window;
+}*/
+
+md-toolbar h3{
+    margin: auto;
+    font-weight: 500;
+}
+
+md-list-item > button{
+    width:100%;
+    text-align: left !important;
+}
+
+#content{
+    padding-left: 40px;
+    padding-right: 40px;
+    padding-top: 5px;
+}
+
+md-sidenav md-input-container{
+    margin: 8px 0 0 0;
+}
+
+ng-md-icon{
+    margin:0;
+}
+
+.md-raised ng-md-icon > svg,
+.md-icon-button > ng-md-icon > svg{
+    fill: #fff;
+}
+
+ng-md-icon svg{
+    fill: #3c8dbc;
+}
+
+/* Hide printers box by default */
+/*.printer-list {
+    display: none;
+}*/
+
+/* Activate printers box, dynamically added by printers.js */
+/*.printer-list-active {
+    display: initial;
+}*/
+
+/* Make UI Text not selectable */
+/*.ui-text {
+    -webkit-user-select: none;
+}*/
+
+/*.pane.sidebar .list-group .list-group-item{
+    border: none;
+    border-top: 1px solid #ddd;
+    background-color: rgba(0,0,0,0);
+}
+.pane.sidebar .list-group  .list-group-item.active, 
+.pane.sidebar .list-group .list-group-item.selected {
+    color: #fff;
+    background-color: #116cd6;
+}
+
+
+.pane.sidebar .list-group .list-group-item:last-child{
+    border-bottom:1px solid #ddd
+}
+
+div.pane.sidebar + div.pane{
+    padding-left: 10px;
+}
+
+.pane.sidebar .list-group .list-group-item .icon{
+    margin-right: 5px;
+}*/
+
+/* indicator step1 */
+/*.container.indicator-step-1 h4{
+    margin-top: 0;
+}
+
+table.table tr.selected,
+table.table-striped tr.selected{
+    background-color: #6eb4f7;
+}*/
+
+.mdl-data-table {
+    position: relative;
+    border: 1px solid rgba(0,0,0,.12);
+    border-collapse: collapse;
+    white-space: nowrap;
+    font-size: 13px;
+    background-color: #fff
+}
+
+.mdl-data-table thead {
+    padding-bottom: 3px
+}
+
+.mdl-data-table thead .mdl-data-table__select {
+    margin-top: 0
+}
+
+.mdl-data-table tbody tr {
+    position: relative;
+    height: 48px;
+    -webkit-transition-duration: .28s;
+    transition-duration: .28s;
+    -webkit-transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    -webkit-transition-property: background-color;
+    transition-property: background-color
+}
+
+.mdl-data-table tbody tr.is-selected {
+    background-color: #e0e0e0
+}
+
+.mdl-data-table tbody tr:hover {
+    background-color: #eee
+}
+
+.mdl-data-table td {
+    text-align: right
+}
+
+.mdl-data-table th {
+    padding: 0 18px;
+    text-align: right
+}
+
+.mdl-data-table td:first-of-type,.mdl-data-table th:first-of-type {
+    padding-left: 24px
+}
+
+.mdl-data-table td:last-of-type,.mdl-data-table th:last-of-type {
+    padding-right: 24px
+}
+
+.mdl-data-table td {
+    position: relative;
+    vertical-align: top;
+    height: 48px;
+    border-top: 1px solid rgba(0,0,0,.12);
+    border-bottom: 1px solid rgba(0,0,0,.12);
+    padding: 12px 18px 0;
+    box-sizing: border-box
+}
+
+.mdl-data-table td .mdl-data-table__select {
+    vertical-align: top;
+    position: absolute;
+    left: 24px
+}
+
+.mdl-data-table th {
+    position: relative;
+    vertical-align: bottom;
+    text-overflow: ellipsis;
+    font-weight: 700;
+    line-height: 24px;
+    letter-spacing: 0;
+    height: 48px;
+    font-size: 12px;
+    color: rgba(0,0,0,.54);
+    padding-bottom: 8px;
+    box-sizing: border-box
+}
+
+.mdl-data-table th .mdl-data-table__select {
+    position: absolute;
+    bottom: 8px;
+    left: 24px
+}
+
+.mdl-data-table__select {
+    width: 16px
+}
+
+.mdl-data-table__cell--non-numeric.mdl-data-table__cell--non-numeric {
+    text-align: left
+}

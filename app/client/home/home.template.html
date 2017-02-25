@@ -1,0 +1,68 @@
+<div data-ng-show="home.init">
+    <h3>Para empezar, configure sus fuentes de datos:</h3>
+    <md-list>
+        <md-list-item>
+            <span>1. Haga click en "Conectar Base de datos" &oacute; en "Conectar archivo"</span>
+        </md-list-item>
+        <md-list-item>
+            <span>2. Llene los datos de conexi&oacute;n, &oacute; busque el archivo</span>
+        </md-list-item>
+        <md-list-item>
+            <span>3. Indique el nombre con el que quiere guardar la conexi&oacute;n</span>
+        </md-list-item>
+    </md-list>
+</div>
+<div data-ng-show="!home.init">
+    <h3>Base de datos: {{home.databaseName}}</h3>
+
+    <label for="">{{home.saveDatabaseLabel}}</label>
+    <md-input-container data-ng-form="conection">
+        <label>Nombre de conexi&oacute;n</label>
+        <input type="text" data-ng-model="home.conectionName" required name="name">
+        <div ng-messages="conection.name.$error">
+            <div ng-message="required">El campo es requerido!</div>
+        </div>
+    </md-input-container>
+    <md-button class="md-raised md-primary" data-ng-click="home.saveDatabase()">
+        Guardar
+    </md-button>
+    
+
+</div>
+<h4 data-ng-show="!home.init">Vista Previa: Listado de tablas encontradas</h4>
+<div grid-data id='test' grid-options="home.gridOptions" grid-actions="home.gridActions" data-ng-show="home.gridOptions.data.length">
+    <table class="mdl-data-table mdl-js-data-table mdl-data-table--selectable mdl-shadow--2dp">
+        <thead>
+            <tr>
+                <th class="mdl-data-table__cell--non-numeric">
+                    <span>Nombre</span>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+        <tr grid-item>
+            <td class="mdl-data-table__cell--non-numeric">
+                <span ng-bind="item"></span>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <div layout-xs="column" layout="row" layout-align-xs="end end" layout-align="end center">
+        <grid-pagination max-size="5"
+                            boundary-links="true"
+                            class="pagination"
+                            ng-if="home.paginationOptions.totalItems  > home.paginationOptions.itemsPerPage"
+                            total-items="home.paginationOptions.totalItems"
+                            ng-model="home.paginationOptions.currentPage"
+                            ng-change="home.reloadGrid()"
+                            items-per-page="home.paginationOptions.itemsPerPage"></grid-pagination>
+        <md-input-container flex-offset-gt-xs="5" class="items-per-page">
+            <md-select ng-model="home.paginationOptions.itemsPerPage" ng-change="home.reloadGrid()">
+                <md-option>10</md-option>
+                <md-option>25</md-option>
+                <md-option>50</md-option>
+                <md-option>75</md-option>
+            </md-select>
+        </md-input-container>
+    </div>
+</div>

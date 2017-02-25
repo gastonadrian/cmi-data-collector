@@ -1,0 +1,38 @@
+<h3>Tabla: {{datasourceTable.tableName}}</h3>
+
+<div grid-data id='test' grid-options="datasourceTable.gridOptions" grid-actions="datasourceTable.gridActions" data-ng-show="datasourceTable.gridOptions.data.length">
+    <table class="mdl-data-table mdl-js-data-table mdl-data-table--selectable mdl-shadow--2dp">
+        <thead>
+            <tr>
+                <th class="mdl-data-table__cell--non-numeric">
+                    <span>Nombre</span>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+        <tr grid-item>
+            <td class="mdl-data-table__cell--non-numeric">
+                <span ng-bind="item"></span>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <div layout-xs="column" layout="row" layout-align-xs="end end" layout-align="end center">
+        <grid-pagination max-size="5"
+                            boundary-links="true"
+                            class="pagination"
+                            ng-if="datasourceTable.paginationOptions.totalItems  > datasourceTable.paginationOptions.itemsPerPage"
+                            total-items="datasourceTable.paginationOptions.totalItems"
+                            ng-model="datasourceTable.paginationOptions.currentPage"
+                            ng-change="datasourceTable.reloadGrid()"
+                            items-per-page="datasourceTable.paginationOptions.itemsPerPage"></grid-pagination>
+        <md-input-container flex-offset-gt-xs="5" class="items-per-page">
+            <md-select ng-model="datasourceTable.paginationOptions.itemsPerPage" ng-change="datasourceTable.reloadGrid()">
+                <md-option>10</md-option>
+                <md-option>25</md-option>
+                <md-option>50</md-option>
+                <md-option>75</md-option>
+            </md-select>
+        </md-input-container>
+    </div>
+</div>

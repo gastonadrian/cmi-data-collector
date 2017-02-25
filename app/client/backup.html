@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Panel de Control CMI - Modulo de importaci&oacute;n de datos</title>
+    <link rel="stylesheet" href="./../lib/angular/angular-csp.css">
+    <link rel="stylesheet" href="./../lib/angular-material/angular-material.min.css">
+    <link rel="stylesheet" href="./../lib/angular-material-icons/angular-material-icons.css"> 
+    <link rel="stylesheet" href="./css/app.css">
+    <link rel="stylesheet" href="./../lib/angular-data-grid/demo/material/css/angular-data-grid.material.css">
+  </head>
+  <body data-ng-app="data-collector" data-ng-cloak layout="column">
+    <md-toolbar layout="row">
+        <md-button class="menu" hide-gt-sm>
+            <md-icon md-svg-icon="menu"></md-icon>
+        </md-button>
+        <h3 class="text-center">Configurar fuentes de datos</h3>
+    </md-toolbar>
+    <div class="container" layout="row" data-ng-controller="mainController as main" flex>
+        <md-sidenav md-is-locked-open="$mdMedia('gt-sm')" class="md-whiteframe-4dp" md-component-id="left" >
+            <md-list>
+                <div class="md-subheader">
+                    <div class="md-subheader-inner">
+                        <span class="md-subheader-content">Bases de datos conectadas</span>
+                    </div>
+                </div>
+                <md-list-item>
+                    <md-input-container flex="row">
+                        <input md-input placeholder="Buscar bases de datos..." />
+                    </md-input-container>
+                </md-list-item>
+                <md-list-item>
+                    <md-button class="md-primary md-raised" layout="row" layout-align="space-around center" data-ng-click="main.showDatabaseDialog($event)">
+                        <span>Conectar base de datos</span>
+                        <ng-md-icon icon="sync"></ng-md-icon>
+                    </md-button>
+                </md-list-item>                
+                <md-list-item data-ng-repeat="database in main.databases">
+                    <md-menu>
+                        <md-button data-ng-click="main.openMenu($mdMenu, $event)">
+                            <ng-md-icon icon="storage"></ng-md-icon>
+                            <span>{{database.title}}</span>
+                        </md-button>
+                        <md-menu-content width="6">
+                            <md-menu-item data-ng-repeat="table in database.tables">
+                                <md-button>
+                                    {{table}}
+                                </md-button>
+                            </md-menu-item>
+                        </md-menu-content>                        
+                    </md-menu>
+                </md-list-item>
+
+                <md-divider></md-divider>
+                <div class="md-subheader">
+                    <div class="md-subheader-inner">
+                        <span class="md-subheader-content">Archivos como fuentes de datos</span>
+                    </div>
+                </div>                
+                <md-list-item>
+                    <md-input-container flex="row">
+                        <input md-input placeholder="Buscar archivos..." />
+                    </md-input-container>
+                </md-list-item>
+                <md-list-item>
+                    <md-button class="md-primary md-raised" layout="row" layout-align="space-around center" data-ng-click="main.showFileDialog($event)">
+                        <span>Conectar archivo</span>
+                        <ng-md-icon icon="attach_file"></ng-md-icon>
+                    </md-button>
+                </md-list-item>
+                <md-list-item data-ng-repeat="file in main.files">
+                    <md-button>
+                        <ng-md-icon icon="attachment"></ng-md-icon>
+                        <span>{{file.title}}</span>
+                    </md-button>
+                </md-list-item>                
+            </md-list>
+
+        </md-sidenav>
+        <md-content id="content" ui-view flex>
+            <p>Content</p>
+        </md-content>
+    </div>
+  </body>
+    <!-- Insert this line above script imports  -->
+    <script>if (typeof module === 'object') {window.module = module; module = undefined;}</script>
+
+    <script src="./../lib/jquery/dist/jquery.min.js"></script>
+    <script src="./../lib/angular/angular.min.js"></script>
+    <script src="./../lib/angular-animate/angular-animate.min.js"></script>
+    <script src="./../lib/angular-aria/angular-aria.min.js"></script>
+    <script src="./../lib/angular-material/angular-material.min.js"></script> 
+    <script src="./../lib/angular-messages/angular-messages.min.js"></script>
+    <script src="./../lib/angular-material-icons/angular-material-icons.min.js"></script>  
+    <script src="./../lib/angular-ui-router/release/angular-ui-router.min.js"></script>
+    <script src="./../lib/angular-data-grid/dist/pagination.min.js"></script> 
+    <script src="./../lib/angular-data-grid/dist/dataGrid.min.js"></script>
+
+    <script src="./../lib/electangular.js"></script>
+    <script src="./app.js"></script>
+    <script src="./home/home.controller.js"></script>
+    <script src="./add-database/add-database.controller.js"></script>
+    <script src="./datasource/datasourceTable.controller.js"></script>
+    <script>
+        // You can also require other files to run in this process
+        require('./../backend/renderer.js')
+        require('./../backend/ex-links.js')
+        require('./../backend/notifications.js')
+        require('./../backend/actions/zoom.js')
+        require('./../backend/context-menu.js')
+    </script>
+    <!-- Insert this line after script imports -->
+    <script>if (window.module) module = window.module;</script>
+</html>

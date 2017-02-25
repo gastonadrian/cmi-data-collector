@@ -1,1 +1,3 @@
 **/*{.,-}min.js
+app/backend/modules/**/*.js
+app/backend/modules/**.js
