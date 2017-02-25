@@ -34,6 +34,7 @@ init();
  */
 function init() {
   ipcRenderer.on( 'init-params', ( event, arg ) => {
+    console.log(arg);
     sendMessageToMain( 'init-event', arg );
   } );
 

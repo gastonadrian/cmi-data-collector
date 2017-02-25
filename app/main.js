@@ -179,6 +179,7 @@ function initialize() {
     mainWindow = createMainWindow()
 
     // enviar todos los datos que no fueron posibles anteriormente xq no se habia creado mainWindow;
+    console.log('enviar los datos', urlData);
     handleUrl();
 
     // Manage automatic updates
@@ -219,8 +220,6 @@ function initialize() {
 
   if ( process.platform === 'darwin' ) {
     app.on( 'open-url', handleUrl );
-  } else {
-    handleUrl( {}, [ process.argv, process.argv0, process.execArgv ] );
   }
 
   /**
@@ -233,6 +232,7 @@ function initialize() {
   function handleUrl( event, params ) {
 
     if ( !mainWindow || !mainWindow.webContents ) {
+      console.log('no se envia nada');
       urlData = params;
       return;
     }
@@ -283,7 +283,9 @@ function initialize() {
  * @returns  { Object } singleton instance
  */
 function makeSingleInstance() {
-  return app.makeSingleInstance( () => {
+  return app.makeSingleInstance( ( commandLine, workingDirectory ) => {
+    handleUrl( {}, commandLine );
+    handleUrl( {}, workingDirectory );
     if ( mainWindow ) {
       if ( mainWindow.isMinimized() ) {
         mainWindow.restore()
