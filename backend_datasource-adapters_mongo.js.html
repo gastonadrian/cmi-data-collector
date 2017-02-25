@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: main.js</title>
+    <title>JSDoc: Source: backend/datasource-adapters/mongo.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: main.js</h1>
+    <h1 class="page-title">Source: backend/datasource-adapters/mongo.js</h1>
 
     
 
@@ -26,278 +26,220 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>/*eslint no-console: [2, { allow: ["warn", "error","info","log","debug"] }] */
-
-'use strict'
-
-const electron = require( 'electron' ),
-  app = electron.app,
-  Menu = require( 'electron' ).Menu,
-  dialog = require( 'electron' ).dialog,
-  ipc = require( 'electron' ).ipcMain,
-  path = require( 'path' ),
-  pjson = require( './package.json' ),
+            <pre class="prettyprint source linenums"><code>var mongoControl = require( './../modules/mongo-control' ),
   _ = require( 'lodash' ),
-  windowStateKeeper = require( 'electron-window-state' );
-
-var config = {}
-
-// Use system log facility, should work on Windows too
-require( './lib/log' )( pjson.productName || 'CMIDataCollector' )
-
-// Manage unhandled exceptions as early as possible
-process.on( 'uncaughtException', ( e ) => {
-  console.error( `Caught unhandled exception: ${e}` )
-  dialog.showErrorBox( 'Caught unhandled exception', e.message || 'Unknown error message' )
-  app.quit()
-} )
-
-// Load build target configuration file
-try {
-  config = require( './config.json' )
-  _.merge( pjson.config, config )
-} catch ( e ) {
-  console.warn( 'No config file loaded, using defaults' )
-}
-
-let isDev = ( require( 'electron-is-dev' ) || pjson.config.debug ),
-  // Prevent window being garbage collected
-  mainWindow,
-  // Other windows we may need
-  infoWindow = null
-
-global.appSettings = pjson.config
-
-if ( isDev ) {
-  console.info( 'Running in development' )
-} else {
-  console.info( 'Running in production' )
-}
-
-console.debug( JSON.stringify( pjson.config ) )
-
-// Adds debug features like hotkeys for triggering dev tools and reload
-// (disabled in production, unless the menu item is displayed)
-require( 'electron-debug' )( {
-  // enabled: pjson.config.debug || isDev || false
-  enabled: true
-} )
-
-
-app.setName( pjson.productName || 'SkelEktron' )
+  moment = require( 'moment' ),
+  utils = require( './utils' );
 
 /**
- * @returns { Boolean } quit the apps
+ *
+ *
+ * @returns {Object} Modulo con toda la funcionalidad necesaria para poder consumir bases de datos mongo
  */
-function initialize() {
-  var shouldQuit = makeSingleInstance()
-  if ( shouldQuit ) {
-    return app.quit()
+function mongoAdapter() {
+
+  var options = {
+      getFirstTableData: true,
+      protocol: 'mongodb',
+      user: '',
+      password: '',
+      host: '',
+      port: 0,
+      database: ''
+    },
+    connString;
+
+    // TESTS:
+        // VERIFICAR QUE SE PUEDE CONECTAR A UNA BD
+        // PROBAR UNA BD QUE NO TIENE COLECCIONES
+        // PEDIR SOLO LAS TABLAS
+
+  /**
+   * @name setDataSource
+   * @description conecta al servidor especificado, devuelve la lista de tablas (colecciones en este caso) y la primer coleccion en caso de que se haya proporcionado ese dato
+   * @param {Object} params Parametros de conexion al servidor de base de datos
+   * @returns {Promise} Promesa que se resuelve asincronicamente al finalizar las consultas a la base de datos. El objeto de la promesa devuelve:
+   * {
+   *  tableNames {Array&lt;String>} Lista de las colecciones/tablas de la base de datos
+   *  table: {Object} Objeto que contiene las columnas y filas de la primera coleccion/tabla (En caso que en los parametros se pida la primer tabla)
+   * }
+   */
+  function setDataSource( params ) {
+    var colIndex,
+      result = {
+        tableNames: [],
+        table: {
+          data: [],
+          columns: []
+        }
+      };
+
+    if ( !params.database ) {
+      throw 'Necesita proveer un esquema';
+    }
+
+      // combinamos los parametros en las opciones para sobreescribir valores por defecto
+    _.merge( options, params );
+    // obtenemos la cadena de conexion
+    connString = utils.setConnString( options );
+
+    // obtenemos la lista de colecciones
+    return mongoControl.listCollections( { db: connString } )
+      .then( function onListCollections( collections ) {
+        // se agregan todas las colecciones, salvo system.indexes que contiene metadata sobre la base de datos
+        for ( colIndex in collections ) {
+          if ( collections[ colIndex ].name !== 'system.indexes' ) {
+            result.tableNames.push( collections[ colIndex ].name );
+          }
+        }
+
+        // devolvemos los resultados parciales al pipe de la promesa
+        return result.tableNames;
+      } )
+      .then( function onListCollectionsResolved( tables ) {
+        if ( options.getFirstTableData &amp;&amp; tables.length ) {
+          // si se solicito la primer tabla
+          return getTableData( options, tables[ 0 ] )
+            .then( function onGetFirstTable( collectionData ) {
+              result.table = collectionData;
+              // devolvemos todo el objeto
+              return result;
+            } );
+        }
+      } );
+  }
+
+    // TESTS:
+        // VERIFICAR QUE SE DEVUELVEN TODAS LAS COLUMNAS
+        // VERIFICAR QUE SE DEVUELVE EL HEADER
+        // PROBAR CON UNA COLECCION QUE NO EXISTE
+  /**
+   * @name getTableData
+   * @description Obtiene los datos (columnas y filas) de la tabla solicitada
+   * @param {Object} params Opciones para conectarse con la base de datos
+   * @param {String} tableName Nombre de la coleccion/tabla solicitada
+   * @param {Number} limit Cantidad maxima de filas pedidas
+   * @param {Object} projection Si se va a utilizar una projeccion para traer los datos
+   * @param {String} query Si se va a utilizar una query para obtener los datos
+   * @returns {Object} Objeto con tabla(filas) y columnas para la tabla pedida.
+   */
+  function getTableData( params, tableName, limit, projection, query ) {
+    var settings = {
+        db: connString,
+        collection: tableName,
+        limit: limit || 100,
+        projection: projection || {},
+        query: query || {}
+      },
+      result = {
+        data: [],
+        columns: []
+      },
+      i;
+
+    _.merge( options, params );
+    connString = utils.setConnString( options );
+
+    return mongoControl.find( settings ).then( function onData( collectionData ) {
+      // si la coleccion existe
+      if ( collectionData &amp;&amp; collectionData.length ) {
+
+        // por cada columna armar la definicion
+        for ( i in collectionData[ 0 ] ) {
+
+          // no agregamos la columnas que empiezan con _id (internas de mongo)
+          if ( i === '_id' ) {
+            continue;
+          }
+
+          result.columns.push( {
+            title: i,
+            data: i
+          } );
+        }
+        result.data = collectionData;
+      }
+      return result;
+    } );
   }
 
   /**
-   * @name onClosed
-   * @description
-   * Dereference used windows
-   * for multiple windows store them in an array
-   * @returns { Void } void
+   * @name getMonthlyData
+   * @description Obtiene el consolidado de datos para un mes especifico sobre los datos de un indicador
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @param {number} month Mes sobre el cual se quieren calcular los datos
+   * @param {number} year Anio sobre el cual se quieren calcular los datos
+   * @returns {Object} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
    */
-  function onClosed() {
-    mainWindow = null
-    infoWindow = null
+  function getMonthlyData( params, indicator, month, year ) {
+    var findParams,
+      startOfMonth = new Date( year, month - 1, 1 );
+
+    _.merge( options, params );
+
+    findParams = {
+      db: utils.setConnString( options ),
+      collection: indicator.datasource.table,
+      pipeline: [
+        {
+          '$match': {}
+        },
+        {
+          '$group': {
+            '_id': { '$month': '$' + indicator.datasource.dateColumn }
+          }
+        }
+      ]
+    };
+
+    // set date boundaries
+    findParams.pipeline[ 0 ][ '$match' ][ indicator.datasource.dateColumn ] = {
+      '$gte': startOfMonth,
+      '$lte': new Date( moment( startOfMonth ).endOf( 'month' ) )
+    };
+
+    //count distinct
+    if ( indicator.datasource.columnOperation === 4 ) {
+      findParams.pipeline[ 1 ].$group[ '_id' ] = '$' + indicator.datasource.valueColumn;
+    }
+
+    // count
+    if ( indicator.datasource.columnOperation === 3 ) {
+      findParams.pipeline[ 1 ].$group.result = { '$sum': 1 };
+    }
+
+
+    // sum
+    if ( indicator.datasource.columnOperation === 2 ) {
+      findParams.pipeline[ 1 ].$group.result = { '$sum': '$' + indicator.datasource.valueColumn };
+    }
+
+    // average
+    if ( indicator.datasource.columnOperation === 1 ) {
+      findParams.pipeline[ 1 ].$group.result = { '$avg': '$' + indicator.datasource.valueColumn };
+    }
+
+    return mongoControl.aggregate( findParams )
+      .then( function onAggregate( response ) {
+        return {
+          data: response
+        };
+      } )
+      .then( utils.queryImportCallback.bind( this, indicator, startOfMonth ) );
   }
 
-  /**
-   * @description
-   * Scaffolds the main window
-   * @returns { Boolean } exit code
-   */
-  function createMainWindow() {
-    // Load the previous window state with fallback to defaults
-    let mainWindowState = windowStateKeeper( {
-      defaultWidth: 1024,
-      defaultHeight: 768
-    } )
-
-    const win = new electron.BrowserWindow( {
-      'width': mainWindowState.width,
-      'height': mainWindowState.height,
-      'x': mainWindowState.x,
-      'y': mainWindowState.y,
-      'title': app.getName(),
-      'icon': path.join( __dirname, '/app/assets/img/icon.png' ),
-      // Hide your application until your page has loaded
-      'show': false,
-      'webPreferences': {
-        // Disabling node integration allows to use libraries such as jQuery/React, etc
-        'nodeIntegration': pjson.config.nodeIntegration || true,
-        'preload': path.resolve( path.join( __dirname, '/backend/preload.js' ) )
-      }
-    } )
-
-    // Let us register listeners on the window, so we can update the state
-    // automatically (the listeners will be removed when the window is closed)
-    // and restore the maximized or full screen state
-    mainWindowState.manage( win )
-
-    // Remove file:// if you need to load http URLs
-    win.loadURL( `file://${__dirname}/${pjson.config.url}`, {} )
-
-    win.on( 'closed', onClosed )
-
-    // Then, when everything is loaded, show the window and focus it so it pops up for the user
-    // Yon can also use: win.webContents.on('did-finish-load')
-    win.on( 'ready-to-show', () => {
-      win.show()
-      win.focus()
-    } )
-
-    win.on( 'unresponsive', function onUnresponsive() {
-      // In the real world you should display a box and do something
-      console.warn( 'The windows is not responding' )
-    } )
-
-    win.webContents.on( 'did-fail-load', ( error, errorCode, errorDescription ) => {
-      var errorMessage
-
-      if ( errorCode === -105 ) {
-        errorMessage = errorDescription || '[Connection Error] The host name could not be resolved, check your network connection'
-        console.log( errorMessage )
-      } else {
-        errorMessage = errorDescription || 'Unknown error'
-      }
-
-      error.sender.loadURL( `file://${__dirname}/error.html` )
-      win.webContents.on( 'did-finish-load', () => {
-        win.webContents.send( 'app-error', errorMessage )
-      } )
-    } )
-
-    win.webContents.on( 'crashed', () => {
-      // In the real world you should display a box and do something
-      console.error( 'The browser window has just crashed' )
-    } )
-
-    win.webContents.on( 'did-finish-load', () => {
-      win.webContents.send( 'hello' )
-    } )
-
-    return win
-  }
-
-  app.on( 'window-all-closed', () => {
-    if ( process.platform !== 'darwin' ) {
-      app.quit()
-    }
-  } )
-
-  app.on( 'activate', () => {
-    if ( !mainWindow ) {
-      mainWindow = createMainWindow()
-    }
-  } )
-
-  app.setAsDefaultProtocolClient( 'electron' );
-  app.on( 'ready', () => {
-    Menu.setApplicationMenu( createMenu() )
-    mainWindow = createMainWindow()
-
-
-    // Manage automatic updates
-    try {
-      require( './lib/auto-update/update' )( {
-        url: ( pjson.config.update ) ? pjson.config.update.url || false : false,
-        version: app.getVersion()
-      } )
-      ipc.on( 'update-downloaded', ( autoUpdater ) => {
-        // Elegant solution: display unobtrusive notification messages
-        mainWindow.webContents.send( 'update-downloaded' )
-        ipc.on( 'update-and-restart', () => {
-          autoUpdater.quitAndInstall()
-        } )
-
-        // Basic solution: display a message box to the user
-        // var updateNow = dialog.showMessageBox(mainWindow, {
-        //   type: 'question',
-        //   buttons: ['Yes', 'No'],
-        //   defaultId: 0,
-        //   cancelId: 1,
-        //   title: 'Update available',
-        //   message: 'There is an update available, do you want to restart and install it now?'
-        // })
-        //
-        // if (updateNow === 0) {
-        //   autoUpdater.quitAndInstall()
-        // }
-      } )
-    } catch ( e ) {
-      console.error( e.message )
-      dialog.showErrorBox( 'Update Error', e.message )
-    }
-  } )
-
-  app.on( 'will-quit', () => {} )
-
-  ipc.on( 'open-info-window', () => {
-    if ( infoWindow ) {
-      return
-    }
-    infoWindow = new electron.BrowserWindow( {
-      width: 600,
-      height: 600,
-      resizable: false
-    } )
-    infoWindow.loadURL( `file://${__dirname}/info.html` )
-
-    infoWindow.on( 'closed', () => {
-      infoWindow = null
-    } )
-  } )
-
-  // Listen for sync message from renderer process
-  ipc.on( 'electron-msg', ( event, arg ) => {
-    mainWindow.webContents.send( arg.msg, arg.data );
-  } );
-
-  ipc.on( 'renderer-msg', ( event, arg ) => {
-    mainWindow.webContents.send( 'electron-msg', arg );
-  } );
+  return {
+    setDataSource: setDataSource,
+    getTableData: getTableData,
+    getMonthlyData: getMonthlyData
+  };
 }
 
-/**
- * @name makeSingleInstance
- * @description
- * Make this app a single instance app.
- *
- * The main window will be restored and focused instead of a second window
- * opened when a person attempts to launch a second instance.
- *
- * Returns true if the current version of the app should quit instead of
- * launching.
- * @returns  { Object } singleton instance
- */
-function makeSingleInstance() {
-  return app.makeSingleInstance( () => {
-    if ( mainWindow ) {
-      if ( mainWindow.isMinimized() ) {
-        mainWindow.restore()
-      }
-      mainWindow.focus()
-    }
-  } )
-}
+module.exports = mongoAdapter;
 
-/**
- * @name createMenu
- *
- * @returns { Object } Menu
- */
-function createMenu() {
-  return Menu.buildFromTemplate( require( './lib/menu' ) )
-}
 
-// Manage Squirrel startup event (Windows)
-require( './lib/auto-update/startup' )( initialize )
+
 </code></pre>
         </article>
     </section>

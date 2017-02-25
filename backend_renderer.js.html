@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: main.js</title>
+    <title>JSDoc: Source: backend/renderer.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: main.js</h1>
+    <h1 class="page-title">Source: backend/renderer.js</h1>
 
     
 
@@ -26,278 +26,202 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>/*eslint no-console: [2, { allow: ["warn", "error","info","log","debug"] }] */
-
-'use strict'
-
-const electron = require( 'electron' ),
-  app = electron.app,
-  Menu = require( 'electron' ).Menu,
-  dialog = require( 'electron' ).dialog,
-  ipc = require( 'electron' ).ipcMain,
+            <pre class="prettyprint source linenums"><code>// node modules
+var app = require( 'electron' ).remote,
   path = require( 'path' ),
-  pjson = require( './package.json' ),
   _ = require( 'lodash' ),
-  windowStateKeeper = require( 'electron-window-state' );
+  ipcRenderer = require( 'electron' ).ipcRenderer,
+  excel = require( './datasource-adapters/xls' ),
+  csv = require( './datasource-adapters/csv' ),
+  json = require( './datasource-adapters/json' ),
+  mongo = require( './datasource-adapters/mongo' ),
+  mysql = require( './datasource-adapters/mysql' ),
+  mssql = require( './datasource-adapters/mssql' ),
+  apiClient = require( './api-client' )(),
+  dialog = app.dialog,
+  providers = {
+    mongo: mongo,
+    mysql: mysql,
+    mssql: mssql,
+    excel: excel,
+    csv: csv,
+    json: json
+  },
+  latestOptions = {},
+  fileOptions = {
+    getFirstTableData: true,
+    filePath: ''
+  };
 
-var config = {}
-
-// Use system log facility, should work on Windows too
-require( './lib/log' )( pjson.productName || 'CMIDataCollector' )
-
-// Manage unhandled exceptions as early as possible
-process.on( 'uncaughtException', ( e ) => {
-  console.error( `Caught unhandled exception: ${e}` )
-  dialog.showErrorBox( 'Caught unhandled exception', e.message || 'Unknown error message' )
-  app.quit()
-} )
-
-// Load build target configuration file
-try {
-  config = require( './config.json' )
-  _.merge( pjson.config, config )
-} catch ( e ) {
-  console.warn( 'No config file loaded, using defaults' )
-}
-
-let isDev = ( require( 'electron-is-dev' ) || pjson.config.debug ),
-  // Prevent window being garbage collected
-  mainWindow,
-  // Other windows we may need
-  infoWindow = null
-
-global.appSettings = pjson.config
-
-if ( isDev ) {
-  console.info( 'Running in development' )
-} else {
-  console.info( 'Running in production' )
-}
-
-console.debug( JSON.stringify( pjson.config ) )
-
-// Adds debug features like hotkeys for triggering dev tools and reload
-// (disabled in production, unless the menu item is displayed)
-require( 'electron-debug' )( {
-  // enabled: pjson.config.debug || isDev || false
-  enabled: true
-} )
-
-
-app.setName( pjson.productName || 'SkelEktron' )
+init();
 
 /**
- * @returns { Boolean } quit the apps
+ * @name init
+ * @description Inicializa el renderer
+ * @returns {void}
  */
-function initialize() {
-  var shouldQuit = makeSingleInstance()
-  if ( shouldQuit ) {
-    return app.quit()
-  }
-
-  /**
-   * @name onClosed
-   * @description
-   * Dereference used windows
-   * for multiple windows store them in an array
-   * @returns { Void } void
-   */
-  function onClosed() {
-    mainWindow = null
-    infoWindow = null
-  }
-
-  /**
-   * @description
-   * Scaffolds the main window
-   * @returns { Boolean } exit code
-   */
-  function createMainWindow() {
-    // Load the previous window state with fallback to defaults
-    let mainWindowState = windowStateKeeper( {
-      defaultWidth: 1024,
-      defaultHeight: 768
-    } )
-
-    const win = new electron.BrowserWindow( {
-      'width': mainWindowState.width,
-      'height': mainWindowState.height,
-      'x': mainWindowState.x,
-      'y': mainWindowState.y,
-      'title': app.getName(),
-      'icon': path.join( __dirname, '/app/assets/img/icon.png' ),
-      // Hide your application until your page has loaded
-      'show': false,
-      'webPreferences': {
-        // Disabling node integration allows to use libraries such as jQuery/React, etc
-        'nodeIntegration': pjson.config.nodeIntegration || true,
-        'preload': path.resolve( path.join( __dirname, '/backend/preload.js' ) )
-      }
-    } )
-
-    // Let us register listeners on the window, so we can update the state
-    // automatically (the listeners will be removed when the window is closed)
-    // and restore the maximized or full screen state
-    mainWindowState.manage( win )
-
-    // Remove file:// if you need to load http URLs
-    win.loadURL( `file://${__dirname}/${pjson.config.url}`, {} )
-
-    win.on( 'closed', onClosed )
-
-    // Then, when everything is loaded, show the window and focus it so it pops up for the user
-    // Yon can also use: win.webContents.on('did-finish-load')
-    win.on( 'ready-to-show', () => {
-      win.show()
-      win.focus()
-    } )
-
-    win.on( 'unresponsive', function onUnresponsive() {
-      // In the real world you should display a box and do something
-      console.warn( 'The windows is not responding' )
-    } )
-
-    win.webContents.on( 'did-fail-load', ( error, errorCode, errorDescription ) => {
-      var errorMessage
-
-      if ( errorCode === -105 ) {
-        errorMessage = errorDescription || '[Connection Error] The host name could not be resolved, check your network connection'
-        console.log( errorMessage )
-      } else {
-        errorMessage = errorDescription || 'Unknown error'
-      }
-
-      error.sender.loadURL( `file://${__dirname}/error.html` )
-      win.webContents.on( 'did-finish-load', () => {
-        win.webContents.send( 'app-error', errorMessage )
-      } )
-    } )
-
-    win.webContents.on( 'crashed', () => {
-      // In the real world you should display a box and do something
-      console.error( 'The browser window has just crashed' )
-    } )
-
-    win.webContents.on( 'did-finish-load', () => {
-      win.webContents.send( 'hello' )
-    } )
-
-    return win
-  }
-
-  app.on( 'window-all-closed', () => {
-    if ( process.platform !== 'darwin' ) {
-      app.quit()
-    }
-  } )
-
-  app.on( 'activate', () => {
-    if ( !mainWindow ) {
-      mainWindow = createMainWindow()
-    }
-  } )
-
-  app.setAsDefaultProtocolClient( 'electron' );
-  app.on( 'ready', () => {
-    Menu.setApplicationMenu( createMenu() )
-    mainWindow = createMainWindow()
-
-
-    // Manage automatic updates
-    try {
-      require( './lib/auto-update/update' )( {
-        url: ( pjson.config.update ) ? pjson.config.update.url || false : false,
-        version: app.getVersion()
-      } )
-      ipc.on( 'update-downloaded', ( autoUpdater ) => {
-        // Elegant solution: display unobtrusive notification messages
-        mainWindow.webContents.send( 'update-downloaded' )
-        ipc.on( 'update-and-restart', () => {
-          autoUpdater.quitAndInstall()
+function init() {
+  ipcRenderer.on( 'connect-database', ( event, arg ) => {
+    processDataSource( arg.engine, arg )
+        .then( function onDatabaseConnect( data ) {
+          latestOptions = {
+            options: arg,
+            tables: data.tableNames
+          };
+          sendMessageToMain( 'connect-database-ok', { databaseName: arg.database, tables: data.tableNames } );
         } )
+        .catch( function onDatabaseConnectError( error ) {
+          sendMessageToMain( 'connect-database-error', error );
+        } );
+  } );
 
-        // Basic solution: display a message box to the user
-        // var updateNow = dialog.showMessageBox(mainWindow, {
-        //   type: 'question',
-        //   buttons: ['Yes', 'No'],
-        //   defaultId: 0,
-        //   cancelId: 1,
-        //   title: 'Update available',
-        //   message: 'There is an update available, do you want to restart and install it now?'
-        // })
-        //
-        // if (updateNow === 0) {
-        //   autoUpdater.quitAndInstall()
-        // }
+  ipcRenderer.on( 'connect-file', showFileDialog );
+
+  ipcRenderer.on( 'save-database', ( event, arg ) => {
+    latestOptions.options.title = arg.title;
+    apiClient.saveDataSource( 'database', latestOptions.options, latestOptions.tables )
+      .then( function onDatasourceSaved( response ) {
+        sendMessageToMain( 'save-database-ok', { datasourceId: response.id } );
+        getDatasources();
       } )
-    } catch ( e ) {
-      console.error( e.message )
-      dialog.showErrorBox( 'Update Error', e.message )
-    }
-  } )
-
-  app.on( 'will-quit', () => {} )
-
-  ipc.on( 'open-info-window', () => {
-    if ( infoWindow ) {
-      return
-    }
-    infoWindow = new electron.BrowserWindow( {
-      width: 600,
-      height: 600,
-      resizable: false
-    } )
-    infoWindow.loadURL( `file://${__dirname}/info.html` )
-
-    infoWindow.on( 'closed', () => {
-      infoWindow = null
-    } )
-  } )
-
-  // Listen for sync message from renderer process
-  ipc.on( 'electron-msg', ( event, arg ) => {
-    mainWindow.webContents.send( arg.msg, arg.data );
+      .catch( function onDatasourceError() {
+        sendMessageToMain( 'save-database-error', {} );
+      } );
   } );
 
-  ipc.on( 'renderer-msg', ( event, arg ) => {
-    mainWindow.webContents.send( 'electron-msg', arg );
+  ipcRenderer.on( 'get-datasources', getDatasources );
+
+  ipcRenderer.on( 'import-data', ( event, arg ) => {
+    importData( arg.indicator, arg.datasource, arg.month, arg.year )
+      .then( function onOk( response ) {
+        sendMessageToMain( 'import-data-ok', response );
+      } )
+      .catch( function onError( error ) {
+        sendMessageToMain( 'import-data-error', error );
+      } );
   } );
 }
 
 /**
- * @name makeSingleInstance
- * @description
- * Make this app a single instance app.
- *
- * The main window will be restored and focused instead of a second window
- * opened when a person attempts to launch a second instance.
- *
- * Returns true if the current version of the app should quit instead of
- * launching.
- * @returns  { Object } singleton instance
+ * @name importData
+ * @description Calcula el consolidado de datos de un mes para un indicador
+ * @param {Indicator} indicator - El indicador sobre el cual calcular el consolidado
+ * @param {Datasource} datasource - La fuente de datos de donde consultar datos
+ * @param {number} month - Mes requerido
+ * @param {number} year - Anio requerido
+ * @returns {Promise} - Promesa que contiene el resultado de los datos guardados en el microservicio
  */
-function makeSingleInstance() {
-  return app.makeSingleInstance( () => {
-    if ( mainWindow ) {
-      if ( mainWindow.isMinimized() ) {
-        mainWindow.restore()
+function importData( indicator, datasource, month, year ) {
+  var provider,
+    connectionParams;
+
+  return new Promise( function onImport( resolve, reject ) {
+    if ( !_.includes( datasource.tables, indicator.datasource.table ) ) {
+      return reject( `La tabla (${indicator.datasour.table}) que configuro para este indicador no existe, por favor revise su configuracion` );
+    }
+
+    // database
+    if ( datasource.type === 1 ) {
+
+      if ( !datasource.database.engine ) {
+        return reject( `El motor de base de datos es invalido, por favor reconfigure la fuente de datos "${datasource.title}"` );
       }
-      mainWindow.focus()
+      provider = getDataSourceProvider( datasource.database.engine );
+      connectionParams = datasource.database;
+    } else {
+      connectionParams = datasource.file;
     }
-  } )
+
+    return provider.getMonthlyData( connectionParams, indicator, month, year )
+      .then( apiClient.saveIndicatorData );
+  } );
 }
 
 /**
- * @name createMenu
- *
- * @returns { Object } Menu
+ * @name sendMessageToMain
+ * @description Envia un mensaje al proceso principal de la aplicacion, quien a su vez lo reenvia al frontend
+ * @param {any} msg - Token de Mensaje
+ * @param {any} data - Datos a enviar
+ * @returns {void}
  */
-function createMenu() {
-  return Menu.buildFromTemplate( require( './lib/menu' ) )
+function sendMessageToMain( msg, data ) {
+  ipcRenderer.send( 'renderer-msg', {
+    msg: msg,
+    data: data
+  } );
 }
 
-// Manage Squirrel startup event (Windows)
-require( './lib/auto-update/startup' )( initialize )
+/**
+ * @name getDataSourceProvider
+ * @description Retorna el proveedor de datos a utilizar para manipular la fuente de datos
+ * @param {string} provider - Nombre del proveedor de datos a utilizar
+ * @returns {Provider} - EL proveedor de fuentes de datos utilizado para conectar
+ */
+function getDataSourceProvider( provider ) {
+  return providers[ provider ]();
+}
+
+/**
+ * @name openDatasourceFile
+ * @description Dado una coleccion de archivos, utiliza el proveedor necesario y se conecta/parsea y retorna los datos de esos archivos
+ * @param {any} fileNames - Nombre de los archivos
+ * @returns {Promise} Promesa con los datos guardados en el archivo
+ */
+function openDatasourceFile( fileNames ) {
+  var extension;
+  if ( fileNames &amp;&amp; fileNames.length ) {
+
+        // setup options
+    _.merge( fileOptions, { filePath: fileNames[ 0 ] } );
+
+        // get provider
+    extension = path.extname( fileNames[ 0 ] ).split( '.' ).pop();
+    return processDataSource( extension, fileOptions );
+  }
+}
+
+
+/**
+ * @name processDataSource
+ * @description Se conecta a la fuente de datos
+ * @param {any} activeProvider - Nombre del Proovedor de datos
+ * @param {any} options - Opciones de conexion de datos
+ * @returns {Promise} - Promesa que se resuelve al conectarse al proveedor de datos o al ocurrir un error
+ */
+function processDataSource( activeProvider, options ) {
+  var provider = getDataSourceProvider( activeProvider );
+  return provider.setDataSource( options );
+}
+
+/**
+ * @name showFileDialog
+ * @description Abre el dialogo de archivos nativo del sistema operativo
+ * @returns {void}
+ */
+function showFileDialog() {
+  dialog.showOpenDialog( openDatasourceFile )
+    .then( function onDatabaseConnect( data ) {
+      sendMessageToMain( 'connect-file-ok', { tables: data.tableNames } );
+    } )
+    .catch( function onDatabaseConnectError( error ) {
+      sendMessageToMain( 'connect-file-error', error );
+    } );
+}
+
+/**
+ * @name getDatasources
+ * @description Obtiene el listado de fuentes de datos y notifica al frontend
+ * @returns {void}
+ */
+function getDatasources() {
+  apiClient.getDatasources()
+    .then( function onOk( response ) {
+      sendMessageToMain( 'get-datasources-ok', response );
+    } )
+    .catch( function onError( error ) {
+      sendMessageToMain( 'get-datasources-error', error );
+    } );
+}
 </code></pre>
         </article>
     </section>

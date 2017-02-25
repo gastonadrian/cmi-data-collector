@@ -47,16 +47,1371 @@
 
 
 
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/admin.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>Admin</strong> class is an internal class that allows convenient access to
+the admin functionality and commands for MongoDB.</p>
+<p><strong>ADMIN Cannot directly be instantiated</strong></p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_admin.js.html">backend/modules/mongodb/lib/admin.js</a>, <a href="backend_modules_mongodb_lib_admin.js.html#line7">line 7</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var MongoClient = require('mongodb').MongoClient,
+  test = require('assert');
+// Connection url
+var url = 'mongodb://localhost:27017/test';
+// Connect using MongoClient
+MongoClient.connect(url, function(err, db) {
+  // Use the admin database for the operation
+  var adminDb = db.admin();
+
+  // List all the available databases
+  adminDb.listDatabases(function(err, dbs) {
+    test.equal(null, err);
+    test.ok(dbs.databases.length > 0);
+    db.close();
+  });
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/aggregation_cursor.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>AggregationCursor</strong> class is an internal class that embodies an aggregation cursor on MongoDB
+allowing for iteration over the results returned from the underlying query. It supports
+one by one document iteration, conversion to an array or can be iterated as a Node 0.10.X
+or higher stream</p>
+<p><strong>AGGREGATIONCURSOR Cannot directly be instantiated</strong></p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_aggregation_cursor.js.html">backend/modules/mongodb/lib/aggregation_cursor.js</a>, <a href="backend_modules_mongodb_lib_aggregation_cursor.js.html#line9">line 9</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var MongoClient = require('mongodb').MongoClient,
+  test = require('assert');
+// Connection url
+var url = 'mongodb://localhost:27017/test';
+// Connect using MongoClient
+MongoClient.connect(url, function(err, db) {
+  // Create a collection we want to drop later
+  var col = db.collection('createIndexExample1');
+  // Insert a bunch of documents
+  col.insert([{a:1, b:1}
+    , {a:2, b:2}, {a:3, b:3}
+    , {a:4, b:4}], {w:1}, function(err, result) {
+    test.equal(null, err);
+    // Show that duplicate records got dropped
+    col.aggregation({}, {cursor: {}}).toArray(function(err, items) {
+      test.equal(null, err);
+      test.equal(4, items.length);
+      db.close();
+    });
+  });
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/collection.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>Collection</strong> class is an internal class that embodies a MongoDB collection
+allowing for insert/update/remove/find and other command operation on that MongoDB collection.</p>
+<p><strong>COLLECTION Cannot directly be instantiated</strong></p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_collection.js.html">backend/modules/mongodb/lib/collection.js</a>, <a href="backend_modules_mongodb_lib_collection.js.html#line26">line 26</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var MongoClient = require('mongodb').MongoClient,
+  test = require('assert');
+// Connection url
+var url = 'mongodb://localhost:27017/test';
+// Connect using MongoClient
+MongoClient.connect(url, function(err, db) {
+  // Create a collection we want to drop later
+  var col = db.collection('createIndexExample1');
+  // Show that duplicate records got dropped
+  col.find({}).toArray(function(err, items) {
+    test.equal(null, err);
+    test.equal(4, items.length);
+    db.close();
+  });
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/command_cursor.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>CommandCursor</strong> class is an internal class that embodies a
+generalized cursor based on a MongoDB command allowing for iteration over the
+results returned. It supports one by one document iteration, conversion to an
+array or can be iterated as a Node 0.10.X or higher stream</p>
+<p><strong>CommandCursor Cannot directly be instantiated</strong></p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_command_cursor.js.html">backend/modules/mongodb/lib/command_cursor.js</a>, <a href="backend_modules_mongodb_lib_command_cursor.js.html#line11">line 11</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var MongoClient = require('mongodb').MongoClient,
+  test = require('assert');
+// Connection url
+var url = 'mongodb://localhost:27017/test';
+// Connect using MongoClient
+MongoClient.connect(url, function(err, db) {
+  // Create a collection we want to drop later
+  var col = db.collection('listCollectionsExample1');
+  // Insert a bunch of documents
+  col.insert([{a:1, b:1}
+    , {a:2, b:2}, {a:3, b:3}
+    , {a:4, b:4}], {w:1}, function(err, result) {
+    test.equal(null, err);
+
+    // List the database collections available
+    db.listCollections().toArray(function(err, items) {
+      test.equal(null, err);
+      db.close();
+    });
+  });
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/cursor.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>Cursor</strong> class is an internal class that embodies a cursor on MongoDB
+allowing for iteration over the results returned from the underlying query. It supports
+one by one document iteration, conversion to an array or can be iterated as a Node 0.10.X
+or higher stream</p>
+<p><strong>CURSORS Cannot directly be instantiated</strong></p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_cursor.js.html">backend/modules/mongodb/lib/cursor.js</a>, <a href="backend_modules_mongodb_lib_cursor.js.html#line15">line 15</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var MongoClient = require('mongodb').MongoClient,
+  test = require('assert');
+// Connection url
+var url = 'mongodb://localhost:27017/test';
+// Connect using MongoClient
+MongoClient.connect(url, function(err, db) {
+  // Create a collection we want to drop later
+  var col = db.collection('createIndexExample1');
+  // Insert a bunch of documents
+  col.insert([{a:1, b:1}
+    , {a:2, b:2}, {a:3, b:3}
+    , {a:4, b:4}], {w:1}, function(err, result) {
+    test.equal(null, err);
+
+    // Show that duplicate records got dropped
+    col.find({}).toArray(function(err, items) {
+      test.equal(null, err);
+      test.equal(4, items.length);
+      db.close();
+    });
+  });
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/db.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>Db</strong> class is a class that represents a MongoDB Database.</p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_db.js.html">backend/modules/mongodb/lib/db.js</a>, <a href="backend_modules_mongodb_lib_db.js.html#line34">line 34</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var MongoClient = require('mongodb').MongoClient,
+  test = require('assert');
+// Connection url
+var url = 'mongodb://localhost:27017/test';
+// Connect using MongoClient
+MongoClient.connect(url, function(err, db) {
+  // Get an additional db
+  var testDb = db.db('test');
+  db.close();
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/gridfs/grid_store.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>GridFS is a tool for MongoDB to store files to the database.
+Because of the restrictions of the object size the database can hold, a
+facility to split a file into several chunks is needed. The <a href="GridStore.html">GridStore</a>
+class offers a simplified api to interact with files while managing the
+chunks of split files behind the scenes. More information about GridFS can be
+found <a href="http://www.mongodb.org/display/DOCS/GridFS">here</a>.</p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_gridfs_grid_store.js.html">backend/modules/mongodb/lib/gridfs/grid_store.js</a>, <a href="backend_modules_mongodb_lib_gridfs_grid_store.js.html#line3">line 3</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var MongoClient = require('mongodb').MongoClient,
+  GridStore = require('mongodb').GridStore,
+  ObjectID = require('mongodb').ObjectID,
+  test = require('assert');
+
+// Connection url
+var url = 'mongodb://localhost:27017/test';
+// Connect using MongoClient
+MongoClient.connect(url, function(err, db) {
+  var gridStore = new GridStore(db, null, "w");
+  gridStore.open(function(err, gridStore) {
+    gridStore.write("hello world!", function(err, gridStore) {
+      gridStore.close(function(err, result) {
+
+        // Let's read the file using object Id
+        GridStore.read(db, result._id, function(err, data) {
+          test.equal('hello world!', data);
+          db.close();
+          test.done();
+        });
+      });
+    });
+  });
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/mongo_client.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>MongoClient</strong> class is a class that allows for making Connections to MongoDB.</p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_mongo_client.js.html">backend/modules/mongodb/lib/mongo_client.js</a>, <a href="backend_modules_mongodb_lib_mongo_client.js.html#line15">line 15</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var MongoClient = require('mongodb').MongoClient,
+  test = require('assert');
+// Connection url
+var url = 'mongodb://localhost:27017/test';
+// Connect using MongoClient
+MongoClient.connect(url, function(err, db) {
+  // Get an additional db
+  db.close();
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/mongos.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>Mongos</strong> class is a class that represents a Mongos Proxy topology and is
+used to construct connections.</p>
+<p><strong>Mongos Should not be used, use MongoClient.connect</strong></p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_mongos.js.html">backend/modules/mongodb/lib/mongos.js</a>, <a href="backend_modules_mongodb_lib_mongos.js.html#line29">line 29</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var Db = require('mongodb').Db,
+  Mongos = require('mongodb').Mongos,
+  Server = require('mongodb').Server,
+  test = require('assert');
+// Connect using Mongos
+var server = new Server('localhost', 27017);
+var db = new Db('test', new Mongos([server]));
+db.open(function(err, db) {
+  // Get an additional db
+  db.close();
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/read_preference.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>ReadPreference</strong> class is a class that represents a MongoDB ReadPreference and is
+used to construct connections.</p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_read_preference.js.html">backend/modules/mongodb/lib/read_preference.js</a>, <a href="backend_modules_mongodb_lib_read_preference.js.html#line3">line 3</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var Db = require('mongodb').Db,
+  ReplSet = require('mongodb').ReplSet,
+  Server = require('mongodb').Server,
+  ReadPreference = require('mongodb').ReadPreference,
+  test = require('assert');
+// Connect using ReplSet
+var server = new Server('localhost', 27017);
+var db = new Db('test', new ReplSet([server]));
+db.open(function(err, db) {
+  test.equal(null, err);
+  // Perform a read
+  var cursor = db.collection('t').find({});
+  cursor.setReadPreference(ReadPreference.PRIMARY);
+  cursor.toArray(function(err, docs) {
+    test.equal(null, err);
+    db.close();
+  });
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/replset.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>ReplSet</strong> class is a class that represents a Replicaset topology and is
+used to construct connections.</p>
+<p><strong>ReplSet Should not be used, use MongoClient.connect</strong></p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_replset.js.html">backend/modules/mongodb/lib/replset.js</a>, <a href="backend_modules_mongodb_lib_replset.js.html#line22">line 22</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var Db = require('mongodb').Db,
+  ReplSet = require('mongodb').ReplSet,
+  Server = require('mongodb').Server,
+  test = require('assert');
+// Connect using ReplSet
+var server = new Server('localhost', 27017);
+var db = new Db('test', new ReplSet([server]));
+db.open(function(err, db) {
+  // Get an additional db
+  db.close();
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>backend/modules/mongodb/lib/server.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>The <strong>Server</strong> class is a class that represents a single server topology and is
+used to construct connections.</p>
+<p><strong>Server Should not be used, use MongoClient.connect</strong></p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_modules_mongodb_lib_server.js.html">backend/modules/mongodb/lib/server.js</a>, <a href="backend_modules_mongodb_lib_server.js.html#line28">line 28</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+            <h3>Example</h3>
+            
+    <pre class="prettyprint"><code>var Db = require('mongodb').Db,
+  Server = require('mongodb').Server,
+  test = require('assert');
+// Connect using single Server
+var db = new Db('test', new Server('localhost', 27017););
+db.open(function(err, db) {
+  // Get an additional db
+  db.close();
+});</code></pre>
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#createMenu">createMenu</a></li><li><a href="global.html#csvAdapter">csvAdapter</a></li><li><a href="global.html#disableZoomUI">disableZoomUI</a></li><li><a href="global.html#enableZoomUI">enableZoomUI</a></li><li><a href="global.html#excelAdapter">excelAdapter</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getTableData">getTableData</a></li><li><a href="global.html#getTables">getTables</a></li><li><a href="global.html#getZoomUI">getZoomUI</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#jsonAdapter">jsonAdapter</a></li><li><a href="global.html#makeSingleInstance">makeSingleInstance</a></li><li><a href="global.html#mongoAdapter">mongoAdapter</a></li><li><a href="global.html#mssqlAdapter">mssqlAdapter</a></li><li><a href="global.html#multiplicacion">multiplicacion</a></li><li><a href="global.html#mySqlAdapter">mySqlAdapter</a></li><li><a href="global.html#onClosed">onClosed</a></li><li><a href="global.html#onConnectionError">onConnectionError</a></li><li><a href="global.html#resta">resta</a></li><li><a href="global.html#setConnection">setConnection</a></li><li><a href="global.html#setConnString">setConnString</a></li><li><a href="global.html#setDataSource">setDataSource</a></li><li><a href="global.html#setupConnection">setupConnection</a></li><li><a href="global.html#suma">suma</a></li><li><a href="global.html#utils">utils</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Externals</h3><ul><li><a href="external-Duplex.html">Duplex</a></li><li><a href="external-Readable.html">Readable</a></li></ul><h3>Classes</h3><ul><li><a href="Admin.html">Admin</a></li><li><a href="AggregationCursor.html">AggregationCursor</a></li><li><a href="BulkWriteResult.html">BulkWriteResult</a></li><li><a href="Chunk.html">Chunk</a></li><li><a href="Collection.html">Collection</a></li><li><a href="CommandCursor.html">CommandCursor</a></li><li><a href="Cursor.html">Cursor</a></li><li><a href="Db.html">Db</a></li><li><a href="FindOperatorsOrdered.html">FindOperatorsOrdered</a></li><li><a href="FindOperatorsUnordered.html">FindOperatorsUnordered</a></li><li><a href="GridFSBucket.html">GridFSBucket</a></li><li><a href="GridFSBucketReadStream.html">GridFSBucketReadStream</a></li><li><a href="GridFSBucketWriteStream.html">GridFSBucketWriteStream</a></li><li><a href="GridStore.html">GridStore</a></li><li><a href="GridStoreStream.html">GridStoreStream</a></li><li><a href="MongoClient.html">MongoClient</a></li><li><a href="Mongos.html">Mongos</a></li><li><a href="OrderedBulkOperation.html">OrderedBulkOperation</a></li><li><a href="ReadPreference.html">ReadPreference</a></li><li><a href="ReplSet.html">ReplSet</a></li><li><a href="Server.html">Server</a></li><li><a href="UnorderedBulkOperation.html">UnorderedBulkOperation</a></li><li><a href="WriteConcernError.html">WriteConcernError</a></li><li><a href="WriteError.html">WriteError</a></li></ul><h3>Events</h3><ul><li><a href="AggregationCursor.html#event:close">close</a></li><li><a href="AggregationCursor.html#event:data">data</a></li><li><a href="AggregationCursor.html#event:end">end</a></li><li><a href="AggregationCursor.html#event:readable">readable</a></li><li><a href="CommandCursor.html#event:close">close</a></li><li><a href="CommandCursor.html#event:data">data</a></li><li><a href="CommandCursor.html#event:end">end</a></li><li><a href="CommandCursor.html#event:readable">readable</a></li><li><a href="Cursor.html#event:close">close</a></li><li><a href="Cursor.html#event:data">data</a></li><li><a href="Cursor.html#event:end">end</a></li><li><a href="Cursor.html#event:readable">readable</a></li><li><a href="Db.html#event:authenticated">authenticated</a></li><li><a href="Db.html#event:close">close</a></li><li><a href="Db.html#event:error">error</a></li><li><a href="Db.html#event:fullsetup">fullsetup</a></li><li><a href="Db.html#event:parseError">parseError</a></li><li><a href="Db.html#event:reconnect">reconnect</a></li><li><a href="Db.html#event:timeout">timeout</a></li><li><a href="GridFSBucket.html#event:index">index</a></li><li><a href="GridFSBucketReadStream.html#event:close">close</a></li><li><a href="GridFSBucketReadStream.html#event:data">data</a></li><li><a href="GridFSBucketReadStream.html#event:end">end</a></li><li><a href="GridFSBucketReadStream.html#event:error">error</a></li><li><a href="GridFSBucketReadStream.html#event:file">file</a></li><li><a href="GridFSBucketWriteStream.html#event:error">error</a></li><li><a href="GridFSBucketWriteStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:close">close</a></li><li><a href="GridStoreStream.html#event:data">data</a></li><li><a href="GridStoreStream.html#event:drain">drain</a></li><li><a href="GridStoreStream.html#event:end">end</a></li><li><a href="GridStoreStream.html#event:error">error</a></li><li><a href="GridStoreStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:pipe">pipe</a></li><li><a href="GridStoreStream.html#event:readable">readable</a></li><li><a href="GridStoreStream.html#event:unpipe">unpipe</a></li><li><a href="Mongos.html#event:close">close</a></li><li><a href="Mongos.html#event:connect">connect</a></li><li><a href="Mongos.html#event:error">error</a></li><li><a href="Mongos.html#event:fullsetup">fullsetup</a></li><li><a href="Mongos.html#event:ha">ha</a></li><li><a href="Mongos.html#event:joined">joined</a></li><li><a href="Mongos.html#event:left">left</a></li><li><a href="Mongos.html#event:open">open</a></li><li><a href="Mongos.html#event:parseError">parseError</a></li><li><a href="Mongos.html#event:timeout">timeout</a></li><li><a href="ReplSet.html#event:close">close</a></li><li><a href="ReplSet.html#event:connect">connect</a></li><li><a href="ReplSet.html#event:error">error</a></li><li><a href="ReplSet.html#event:fullsetup">fullsetup</a></li><li><a href="ReplSet.html#event:ha">ha</a></li><li><a href="ReplSet.html#event:joined">joined</a></li><li><a href="ReplSet.html#event:left">left</a></li><li><a href="ReplSet.html#event:open">open</a></li><li><a href="ReplSet.html#event:parseError">parseError</a></li><li><a href="ReplSet.html#event:timeout">timeout</a></li><li><a href="Server.html#event:close">close</a></li><li><a href="Server.html#event:connect">connect</a></li><li><a href="Server.html#event:error">error</a></li><li><a href="Server.html#event:parseError">parseError</a></li><li><a href="Server.html#event:reconnect">reconnect</a></li><li><a href="Server.html#event:timeout">timeout</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addDatabaseController">addDatabaseController</a></li><li><a href="global.html#apiClient">apiClient</a></li><li><a href="global.html#cancel">cancel</a></li><li><a href="global.html#convertReadPreference">convertReadPreference</a></li><li><a href="global.html#createMenu">createMenu</a></li><li><a href="global.html#csvAdapter">csvAdapter</a></li><li><a href="global.html#datasourceTableController">datasourceTableController</a></li><li><a href="global.html#disableZoomUI">disableZoomUI</a></li><li><a href="global.html#enableZoomUI">enableZoomUI</a></li><li><a href="global.html#excelAdapter">excelAdapter</a></li><li><a href="global.html#GET">GET</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataSourceProvider">getDataSourceProvider</a></li><li><a href="global.html#getDatasources">getDatasources</a></li><li><a href="global.html#getImportPreview">getImportPreview</a></li><li><a href="global.html#getImportQuery">getImportQuery</a></li><li><a href="global.html#getMonthlyData">getMonthlyData</a></li><li><a href="global.html#getServerInfo">getServerInfo</a></li><li><a href="global.html#getTableData">getTableData</a></li><li><a href="global.html#getTables">getTables</a></li><li><a href="global.html#getZoomUI">getZoomUI</a></li><li><a href="global.html#handleDatabaseOk">handleDatabaseOk</a></li><li><a href="global.html#homeController">homeController</a></li><li><a href="global.html#importData">importData</a></li><li><a href="global.html#importPreviewController">importPreviewController</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#jsonAdapter">jsonAdapter</a></li><li><a href="global.html#listDatasources">listDatasources</a></li><li><a href="global.html#mainController">mainController</a></li><li><a href="global.html#makeSingleInstance">makeSingleInstance</a></li><li><a href="global.html#mongoAdapter">mongoAdapter</a></li><li><a href="global.html#mssqlAdapter">mssqlAdapter</a></li><li><a href="global.html#mySqlAdapter">mySqlAdapter</a></li><li><a href="global.html#ok">ok</a></li><li><a href="global.html#onClosed">onClosed</a></li><li><a href="global.html#onConnectionError">onConnectionError</a></li><li><a href="global.html#openDatasourceFile">openDatasourceFile</a></li><li><a href="global.html#openMenu">openMenu</a></li><li><a href="global.html#POST">POST</a></li><li><a href="global.html#processDataSource">processDataSource</a></li><li><a href="global.html#queryImportCallback">queryImportCallback</a></li><li><a href="global.html#safeApply">safeApply</a></li><li><a href="global.html#saveDatabase">saveDatabase</a></li><li><a href="global.html#saveDataSource">saveDataSource</a></li><li><a href="global.html#saveIndicatorData">saveIndicatorData</a></li><li><a href="global.html#sendMessageToMain">sendMessageToMain</a></li><li><a href="global.html#setConnection">setConnection</a></li><li><a href="global.html#setConnString">setConnString</a></li><li><a href="global.html#setDataSource">setDataSource</a></li><li><a href="global.html#setupConnection">setupConnection</a></li><li><a href="global.html#showDatabaseDialog">showDatabaseDialog</a></li><li><a href="global.html#showFileDialog">showFileDialog</a></li><li><a href="global.html#utils">utils</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a> on Thu Feb 23 2017 01:08:31 GMT+0000 (UTC)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a> on Sat Feb 25 2017 00:40:14 GMT+0000 (UTC)
 </footer>
 
 <script> prettyPrint(); </script>

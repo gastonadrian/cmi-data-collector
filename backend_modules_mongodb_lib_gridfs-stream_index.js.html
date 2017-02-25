@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: backend/modules/mongodb/lib/gridfs-stream/index.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: backend/modules/mongodb/lib/gridfs-stream/index.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>var Emitter = require('events').EventEmitter;
+var GridFSBucketReadStream = require('./download');
+var GridFSBucketWriteStream = require('./upload');
+var shallowClone = require('../utils').shallowClone;
+var toError = require('../utils').toError;
+var util = require('util');
+
+var DEFAULT_GRIDFS_BUCKET_OPTIONS = {
+  bucketName: 'fs',
+  chunkSizeBytes: 255 * 1024
+};
+
+module.exports = GridFSBucket;
+
+/**
+ * Constructor for a streaming GridFS interface
+ * @class
+ * @param {Db} db A db handle
+ * @param {object} [options=null] Optional settings.
+ * @param {string} [options.bucketName="fs"] The 'files' and 'chunks' collections will be prefixed with the bucket name followed by a dot.
+ * @param {number} [options.chunkSizeBytes=255 * 1024] Number of bytes stored in each chunk. Defaults to 255KB
+ * @param {object} [options.writeConcern=null] Optional write concern to be passed to write operations, for instance `{ w: 1 }`
+ * @param {object} [options.readPreference=null] Optional read preference to be passed to read operations
+ * @fires GridFSBucketWriteStream#index
+ * @return {GridFSBucket}
+ */
+
+function GridFSBucket(db, options) {
+  Emitter.apply(this);
+  this.setMaxListeners(0);
+
+  if (options &amp;&amp; typeof options === 'object') {
+    options = shallowClone(options);
+    var keys = Object.keys(DEFAULT_GRIDFS_BUCKET_OPTIONS);
+    for (var i = 0; i &lt; keys.length; ++i) {
+      if (!options[keys[i]]) {
+        options[keys[i]] = DEFAULT_GRIDFS_BUCKET_OPTIONS[keys[i]];
+      }
+    }
+  } else {
+    options = DEFAULT_GRIDFS_BUCKET_OPTIONS;
+  }
+
+  this.s = {
+    db: db,
+    options: options,
+    _chunksCollection: db.collection(options.bucketName + '.chunks'),
+    _filesCollection: db.collection(options.bucketName + '.files'),
+    checkedIndexes: false,
+    calledOpenUploadStream: false,
+    promiseLibrary: db.s.promiseLibrary ||
+      (typeof global.Promise == 'function' ? global.Promise : require('es6-promise').Promise)
+  };
+}
+
+util.inherits(GridFSBucket, Emitter);
+
+/**
+ * When the first call to openUploadStream is made, the upload stream will
+ * check to see if it needs to create the proper indexes on the chunks and
+ * files collections. This event is fired either when 1) it determines that
+ * no index creation is necessary, 2) when it successfully creates the
+ * necessary indexes.
+ *
+ * @event GridFSBucket#index
+ * @type {Error}
+ */
+
+/**
+ * Returns a writable stream (GridFSBucketWriteStream) for writing
+ * buffers to GridFS. The stream's 'id' property contains the resulting
+ * file's id.
+ * @method
+ * @param {string} filename The value of the 'filename' key in the files doc
+ * @param {object} [options=null] Optional settings.
+ * @param {number} [options.chunkSizeBytes=null] Optional overwrite this bucket's chunkSizeBytes for this file
+ * @param {object} [options.metadata=null] Optional object to store in the file document's `metadata` field
+ * @param {string} [options.contentType=null] Optional string to store in the file document's `contentType` field
+ * @param {array} [options.aliases=null] Optional array of strings to store in the file document's `aliases` field
+ * @return {GridFSBucketWriteStream}
+ */
+
+GridFSBucket.prototype.openUploadStream = function(filename, options) {
+  if (options) {
+    options = shallowClone(options);
+  } else {
+    options = {};
+  }
+  if (!options.chunkSizeBytes) {
+    options.chunkSizeBytes = this.s.options.chunkSizeBytes;
+  }
+  return new GridFSBucketWriteStream(this, filename, options);
+};
+
+/**
+ * Returns a writable stream (GridFSBucketWriteStream) for writing
+ * buffers to GridFS for a custom file id. The stream's 'id' property contains the resulting
+ * file's id.
+ * @method
+ * @param {string|number|object} id A custom id used to identify the file
+ * @param {string} filename The value of the 'filename' key in the files doc
+ * @param {object} [options=null] Optional settings.
+ * @param {number} [options.chunkSizeBytes=null] Optional overwrite this bucket's chunkSizeBytes for this file
+ * @param {object} [options.metadata=null] Optional object to store in the file document's `metadata` field
+ * @param {string} [options.contentType=null] Optional string to store in the file document's `contentType` field
+ * @param {array} [options.aliases=null] Optional array of strings to store in the file document's `aliases` field
+ * @return {GridFSBucketWriteStream}
+ */
+
+GridFSBucket.prototype.openUploadStreamWithId = function(id, filename, options) {
+  if (options) {
+    options = shallowClone(options);
+  } else {
+    options = {};
+  }
+
+  if (!options.chunkSizeBytes) {
+    options.chunkSizeBytes = this.s.options.chunkSizeBytes;
+  }
+
+  options.id = id;
+
+  return new GridFSBucketWriteStream(this, filename, options);
+};
+
+/**
+ * Returns a readable stream (GridFSBucketReadStream) for streaming file
+ * data from GridFS.
+ * @method
+ * @param {ObjectId} id The id of the file doc
+ * @param {Object} [options=null] Optional settings.
+ * @param {Number} [options.start=null] Optional 0-based offset in bytes to start streaming from
+ * @param {Number} [options.end=null] Optional 0-based offset in bytes to stop streaming before
+ * @return {GridFSBucketReadStream}
+ */
+
+GridFSBucket.prototype.openDownloadStream = function(id, options) {
+  var filter = { _id: id };
+  options = {
+    start: options &amp;&amp; options.start,
+    end: options &amp;&amp; options.end
+  };
+
+  return new GridFSBucketReadStream(this.s._chunksCollection,
+    this.s._filesCollection, this.s.options.readPreference, filter, options);
+};
+
+/**
+ * Deletes a file with the given id
+ * @method
+ * @param {ObjectId} id The id of the file doc
+ * @param {GridFSBucket~errorCallback} [callback]
+ */
+
+GridFSBucket.prototype.delete = function(id, callback) {
+  if (typeof callback === 'function') {
+    return _delete(this, id, callback);
+  }
+
+  var _this = this;
+  return new this.s.promiseLibrary(function(resolve, reject) {
+    _delete(_this, id, function(error, res) {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(res);
+      }
+    });
+  });
+};
+
+/**
+ * @ignore
+ */
+
+function _delete(_this, id, callback) {
+  _this.s._filesCollection.deleteOne({ _id: id }, function(error, res) {
+    if (error) {
+      return callback(error);
+    }
+
+    _this.s._chunksCollection.deleteMany({ files_id: id }, function(error) {
+      if (error) {
+        return callback(error);
+      }
+
+      // Delete orphaned chunks before returning FileNotFound
+      if (!res.result.n) {
+        var errmsg = 'FileNotFound: no file with id ' + id + ' found';
+        return callback(new Error(errmsg));
+      }
+
+      callback();
+    });
+  });
+}
+
+/**
+ * Convenience wrapper around find on the files collection
+ * @method
+ * @param {Object} filter
+ * @param {Object} [options=null] Optional settings for cursor
+ * @param {number} [options.batchSize=null] Optional batch size for cursor
+ * @param {number} [options.limit=null] Optional limit for cursor
+ * @param {number} [options.maxTimeMS=null] Optional maxTimeMS for cursor
+ * @param {boolean} [options.noCursorTimeout=null] Optionally set cursor's `noCursorTimeout` flag
+ * @param {number} [options.skip=null] Optional skip for cursor
+ * @param {object} [options.sort=null] Optional sort for cursor
+ * @return {Cursor}
+ */
+
+GridFSBucket.prototype.find = function(filter, options) {
+  filter = filter || {};
+  options = options || {};
+
+  var cursor = this.s._filesCollection.find(filter);
+
+  if (options.batchSize != null) {
+    cursor.batchSize(options.batchSize);
+  }
+  if (options.limit != null) {
+    cursor.limit(options.limit);
+  }
+  if (options.maxTimeMS != null) {
+    cursor.maxTimeMS(options.maxTimeMS);
+  }
+  if (options.noCursorTimeout != null) {
+    cursor.addCursorFlag('noCursorTimeout', options.noCursorTimeout);
+  }
+  if (options.skip != null) {
+    cursor.skip(options.skip);
+  }
+  if (options.sort != null) {
+    cursor.sort(options.sort);
+  }
+
+  return cursor;
+};
+
+/**
+ * Returns a readable stream (GridFSBucketReadStream) for streaming the
+ * file with the given name from GridFS. If there are multiple files with
+ * the same name, this will stream the most recent file with the given name
+ * (as determined by the `uploadDate` field). You can set the `revision`
+ * option to change this behavior.
+ * @method
+ * @param {String} filename The name of the file to stream
+ * @param {Object} [options=null] Optional settings
+ * @param {number} [options.revision=-1] The revision number relative to the oldest file with the given filename. 0 gets you the oldest file, 1 gets you the 2nd oldest, -1 gets you the newest.
+ * @param {Number} [options.start=null] Optional 0-based offset in bytes to start streaming from
+ * @param {Number} [options.end=null] Optional 0-based offset in bytes to stop streaming before
+ * @return {GridFSBucketReadStream}
+ */
+
+GridFSBucket.prototype.openDownloadStreamByName = function(filename, options) {
+  var sort = { uploadDate: -1 };
+  var skip = null;
+  if (options &amp;&amp; options.revision != null) {
+    if (options.revision >= 0) {
+      sort = { uploadDate: 1 };
+      skip = options.revision;
+    } else {
+      skip = -options.revision - 1;
+    }
+  }
+
+  var filter = { filename: filename };
+  options = {
+    sort: sort,
+    skip: skip,
+    start: options &amp;&amp; options.start,
+    end: options &amp;&amp; options.end
+  };
+  return new GridFSBucketReadStream(this.s._chunksCollection,
+    this.s._filesCollection, this.s.options.readPreference, filter, options);
+};
+
+/**
+ * Renames the file with the given _id to the given string
+ * @method
+ * @param {ObjectId} id the id of the file to rename
+ * @param {String} filename new name for the file
+ * @param {GridFSBucket~errorCallback} [callback]
+ */
+
+GridFSBucket.prototype.rename = function(id, filename, callback) {
+  if (typeof callback === 'function') {
+    return _rename(this, id, filename, callback);
+  }
+
+  var _this = this;
+  return new this.s.promiseLibrary(function(resolve, reject) {
+    _rename(_this, id, filename, function(error, res) {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(res);
+      }
+    });
+  });
+};
+
+/**
+ * @ignore
+ */
+
+function _rename(_this, id, filename, callback) {
+  var filter = { _id: id };
+  var update = { $set: { filename: filename } };
+  _this.s._filesCollection.updateOne(filter, update, function(error, res) {
+    if (error) {
+      return callback(error);
+    }
+    if (!res.result.n) {
+      return callback(toError('File with id ' + id + ' not found'));
+    }
+    callback();
+  });
+}
+
+/**
+ * Removes this bucket's files collection, followed by its chunks collection.
+ * @method
+ * @param {GridFSBucket~errorCallback} [callback]
+ */
+
+GridFSBucket.prototype.drop = function(callback) {
+  if (typeof callback === 'function') {
+    return _drop(this, callback);
+  }
+
+  var _this = this;
+  return new this.s.promiseLibrary(function(resolve, reject) {
+    _drop(_this, function(error, res) {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(res);
+      }
+    });
+  });
+};
+
+/**
+ * @ignore
+ */
+
+function _drop(_this, callback) {
+  _this.s._filesCollection.drop(function(error) {
+    if (error) {
+      return callback(error);
+    }
+    _this.s._chunksCollection.drop(function(error) {
+      if (error) {
+        return callback(error);
+      }
+
+      return callback();
+    });
+  });
+}
+
+/**
+ * Callback format for all GridFSBucket methods that can accept a callback.
+ * @callback GridFSBucket~errorCallback
+ * @param {MongoError} error An error instance representing any errors that occurred
+ */
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Externals</h3><ul><li><a href="external-Duplex.html">Duplex</a></li><li><a href="external-Readable.html">Readable</a></li></ul><h3>Classes</h3><ul><li><a href="Admin.html">Admin</a></li><li><a href="AggregationCursor.html">AggregationCursor</a></li><li><a href="BulkWriteResult.html">BulkWriteResult</a></li><li><a href="Chunk.html">Chunk</a></li><li><a href="Collection.html">Collection</a></li><li><a href="CommandCursor.html">CommandCursor</a></li><li><a href="Cursor.html">Cursor</a></li><li><a href="Db.html">Db</a></li><li><a href="FindOperatorsOrdered.html">FindOperatorsOrdered</a></li><li><a href="FindOperatorsUnordered.html">FindOperatorsUnordered</a></li><li><a href="GridFSBucket.html">GridFSBucket</a></li><li><a href="GridFSBucketReadStream.html">GridFSBucketReadStream</a></li><li><a href="GridFSBucketWriteStream.html">GridFSBucketWriteStream</a></li><li><a href="GridStore.html">GridStore</a></li><li><a href="GridStoreStream.html">GridStoreStream</a></li><li><a href="MongoClient.html">MongoClient</a></li><li><a href="Mongos.html">Mongos</a></li><li><a href="OrderedBulkOperation.html">OrderedBulkOperation</a></li><li><a href="ReadPreference.html">ReadPreference</a></li><li><a href="ReplSet.html">ReplSet</a></li><li><a href="Server.html">Server</a></li><li><a href="UnorderedBulkOperation.html">UnorderedBulkOperation</a></li><li><a href="WriteConcernError.html">WriteConcernError</a></li><li><a href="WriteError.html">WriteError</a></li></ul><h3>Events</h3><ul><li><a href="AggregationCursor.html#event:close">close</a></li><li><a href="AggregationCursor.html#event:data">data</a></li><li><a href="AggregationCursor.html#event:end">end</a></li><li><a href="AggregationCursor.html#event:readable">readable</a></li><li><a href="CommandCursor.html#event:close">close</a></li><li><a href="CommandCursor.html#event:data">data</a></li><li><a href="CommandCursor.html#event:end">end</a></li><li><a href="CommandCursor.html#event:readable">readable</a></li><li><a href="Cursor.html#event:close">close</a></li><li><a href="Cursor.html#event:data">data</a></li><li><a href="Cursor.html#event:end">end</a></li><li><a href="Cursor.html#event:readable">readable</a></li><li><a href="Db.html#event:authenticated">authenticated</a></li><li><a href="Db.html#event:close">close</a></li><li><a href="Db.html#event:error">error</a></li><li><a href="Db.html#event:fullsetup">fullsetup</a></li><li><a href="Db.html#event:parseError">parseError</a></li><li><a href="Db.html#event:reconnect">reconnect</a></li><li><a href="Db.html#event:timeout">timeout</a></li><li><a href="GridFSBucket.html#event:index">index</a></li><li><a href="GridFSBucketReadStream.html#event:close">close</a></li><li><a href="GridFSBucketReadStream.html#event:data">data</a></li><li><a href="GridFSBucketReadStream.html#event:end">end</a></li><li><a href="GridFSBucketReadStream.html#event:error">error</a></li><li><a href="GridFSBucketReadStream.html#event:file">file</a></li><li><a href="GridFSBucketWriteStream.html#event:error">error</a></li><li><a href="GridFSBucketWriteStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:close">close</a></li><li><a href="GridStoreStream.html#event:data">data</a></li><li><a href="GridStoreStream.html#event:drain">drain</a></li><li><a href="GridStoreStream.html#event:end">end</a></li><li><a href="GridStoreStream.html#event:error">error</a></li><li><a href="GridStoreStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:pipe">pipe</a></li><li><a href="GridStoreStream.html#event:readable">readable</a></li><li><a href="GridStoreStream.html#event:unpipe">unpipe</a></li><li><a href="Mongos.html#event:close">close</a></li><li><a href="Mongos.html#event:connect">connect</a></li><li><a href="Mongos.html#event:error">error</a></li><li><a href="Mongos.html#event:fullsetup">fullsetup</a></li><li><a href="Mongos.html#event:ha">ha</a></li><li><a href="Mongos.html#event:joined">joined</a></li><li><a href="Mongos.html#event:left">left</a></li><li><a href="Mongos.html#event:open">open</a></li><li><a href="Mongos.html#event:parseError">parseError</a></li><li><a href="Mongos.html#event:timeout">timeout</a></li><li><a href="ReplSet.html#event:close">close</a></li><li><a href="ReplSet.html#event:connect">connect</a></li><li><a href="ReplSet.html#event:error">error</a></li><li><a href="ReplSet.html#event:fullsetup">fullsetup</a></li><li><a href="ReplSet.html#event:ha">ha</a></li><li><a href="ReplSet.html#event:joined">joined</a></li><li><a href="ReplSet.html#event:left">left</a></li><li><a href="ReplSet.html#event:open">open</a></li><li><a href="ReplSet.html#event:parseError">parseError</a></li><li><a href="ReplSet.html#event:timeout">timeout</a></li><li><a href="Server.html#event:close">close</a></li><li><a href="Server.html#event:connect">connect</a></li><li><a href="Server.html#event:error">error</a></li><li><a href="Server.html#event:parseError">parseError</a></li><li><a href="Server.html#event:reconnect">reconnect</a></li><li><a href="Server.html#event:timeout">timeout</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addDatabaseController">addDatabaseController</a></li><li><a href="global.html#apiClient">apiClient</a></li><li><a href="global.html#cancel">cancel</a></li><li><a href="global.html#convertReadPreference">convertReadPreference</a></li><li><a href="global.html#createMenu">createMenu</a></li><li><a href="global.html#csvAdapter">csvAdapter</a></li><li><a href="global.html#datasourceTableController">datasourceTableController</a></li><li><a href="global.html#disableZoomUI">disableZoomUI</a></li><li><a href="global.html#enableZoomUI">enableZoomUI</a></li><li><a href="global.html#excelAdapter">excelAdapter</a></li><li><a href="global.html#GET">GET</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataSourceProvider">getDataSourceProvider</a></li><li><a href="global.html#getDatasources">getDatasources</a></li><li><a href="global.html#getImportPreview">getImportPreview</a></li><li><a href="global.html#getImportQuery">getImportQuery</a></li><li><a href="global.html#getMonthlyData">getMonthlyData</a></li><li><a href="global.html#getServerInfo">getServerInfo</a></li><li><a href="global.html#getTableData">getTableData</a></li><li><a href="global.html#getTables">getTables</a></li><li><a href="global.html#getZoomUI">getZoomUI</a></li><li><a href="global.html#handleDatabaseOk">handleDatabaseOk</a></li><li><a href="global.html#homeController">homeController</a></li><li><a href="global.html#importData">importData</a></li><li><a href="global.html#importPreviewController">importPreviewController</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#jsonAdapter">jsonAdapter</a></li><li><a href="global.html#listDatasources">listDatasources</a></li><li><a href="global.html#mainController">mainController</a></li><li><a href="global.html#makeSingleInstance">makeSingleInstance</a></li><li><a href="global.html#mongoAdapter">mongoAdapter</a></li><li><a href="global.html#mssqlAdapter">mssqlAdapter</a></li><li><a href="global.html#mySqlAdapter">mySqlAdapter</a></li><li><a href="global.html#ok">ok</a></li><li><a href="global.html#onClosed">onClosed</a></li><li><a href="global.html#onConnectionError">onConnectionError</a></li><li><a href="global.html#openDatasourceFile">openDatasourceFile</a></li><li><a href="global.html#openMenu">openMenu</a></li><li><a href="global.html#POST">POST</a></li><li><a href="global.html#processDataSource">processDataSource</a></li><li><a href="global.html#queryImportCallback">queryImportCallback</a></li><li><a href="global.html#safeApply">safeApply</a></li><li><a href="global.html#saveDatabase">saveDatabase</a></li><li><a href="global.html#saveDataSource">saveDataSource</a></li><li><a href="global.html#saveIndicatorData">saveIndicatorData</a></li><li><a href="global.html#sendMessageToMain">sendMessageToMain</a></li><li><a href="global.html#setConnection">setConnection</a></li><li><a href="global.html#setConnString">setConnString</a></li><li><a href="global.html#setDataSource">setDataSource</a></li><li><a href="global.html#setupConnection">setupConnection</a></li><li><a href="global.html#showDatabaseDialog">showDatabaseDialog</a></li><li><a href="global.html#showFileDialog">showFileDialog</a></li><li><a href="global.html#utils">utils</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a> on Sat Feb 25 2017 00:40:14 GMT+0000 (UTC)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

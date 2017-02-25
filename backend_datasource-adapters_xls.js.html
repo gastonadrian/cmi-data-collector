@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: main.js</title>
+    <title>JSDoc: Source: backend/datasource-adapters/xls.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: main.js</h1>
+    <h1 class="page-title">Source: backend/datasource-adapters/xls.js</h1>
 
     
 
@@ -26,278 +26,173 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>/*eslint no-console: [2, { allow: ["warn", "error","info","log","debug"] }] */
-
-'use strict'
-
-const electron = require( 'electron' ),
-  app = electron.app,
-  Menu = require( 'electron' ).Menu,
-  dialog = require( 'electron' ).dialog,
-  ipc = require( 'electron' ).ipcMain,
-  path = require( 'path' ),
-  pjson = require( './package.json' ),
-  _ = require( 'lodash' ),
-  windowStateKeeper = require( 'electron-window-state' );
-
-var config = {}
-
-// Use system log facility, should work on Windows too
-require( './lib/log' )( pjson.productName || 'CMIDataCollector' )
-
-// Manage unhandled exceptions as early as possible
-process.on( 'uncaughtException', ( e ) => {
-  console.error( `Caught unhandled exception: ${e}` )
-  dialog.showErrorBox( 'Caught unhandled exception', e.message || 'Unknown error message' )
-  app.quit()
-} )
-
-// Load build target configuration file
-try {
-  config = require( './config.json' )
-  _.merge( pjson.config, config )
-} catch ( e ) {
-  console.warn( 'No config file loaded, using defaults' )
-}
-
-let isDev = ( require( 'electron-is-dev' ) || pjson.config.debug ),
-  // Prevent window being garbage collected
-  mainWindow,
-  // Other windows we may need
-  infoWindow = null
-
-global.appSettings = pjson.config
-
-if ( isDev ) {
-  console.info( 'Running in development' )
-} else {
-  console.info( 'Running in production' )
-}
-
-console.debug( JSON.stringify( pjson.config ) )
-
-// Adds debug features like hotkeys for triggering dev tools and reload
-// (disabled in production, unless the menu item is displayed)
-require( 'electron-debug' )( {
-  // enabled: pjson.config.debug || isDev || false
-  enabled: true
-} )
-
-
-app.setName( pjson.productName || 'SkelEktron' )
+            <pre class="prettyprint source linenums"><code>var xlsx = require( 'xlsx' ),
+  _ = require( 'lodash' );
 
 /**
- * @returns { Boolean } quit the apps
+ * Excel Adapter de datasource en data-collector
+ *
+ * @returns {Object} Modulo de manejo de datos para planillas de excel
  */
-function initialize() {
-  var shouldQuit = makeSingleInstance()
-  if ( shouldQuit ) {
-    return app.quit()
-  }
+function excelAdapter() {
+
+  var options = {
+      getFirstTableData: true,
+      filePath: ''
+    },
+    workbook;
 
   /**
-   * @name onClosed
-   * @description
-   * Dereference used windows
-   * for multiple windows store them in an array
-   * @returns { Void } void
+   * @name setDataSource
+   * @description Realiza las operaciones necesarias para conectarse al datasource
+   * @param {Object} params - Opciones:
+   *  getFirstTableData {Boolean} Obtiene las columnas y todas las filas de la primer tabla en la lista de tablas.
+   *  filePath: Url del path donde se encuentra el archivo a leer
+   * @returns {Promise} Promesa que se resuelva al obtener los datos del datasource: Listado de tablas y primera tabla (definicion y datos si fueron solicitados)
    */
-  function onClosed() {
-    mainWindow = null
-    infoWindow = null
+  function setDataSource( params ) {
+    // TESTS:
+        // VERIFICAR QUE SE PUEDE ABRIR UN XLS Y UN XLSX
+        // VERIFICAR QUE SE DEVUELVE LA LISTA DE TABLAS
+        // VERIFICAR QUE SE DEVUELVE UNA TABLA Y SU DEFINICION
+    var result = {
+      tableNames: []
+    };
+
+    // combinar todas los parametros con las opciones para sobreescribir valores por defecto
+    _.merge( options, params );
+
+    // retornamos una promesa, ideal en el caso de operaciones asincronicas
+    return new Promise( function promise( resolve, error ) {
+
+      try {
+
+        // leemos el archivo
+        workbook = xlsx.readFile( options.filePath );
+        // en este caso les llamamos tablas a cada hoja del excel
+        result.tableNames = workbook.SheetNames;
+
+        // si en las opciones se pide obtener los datos y especificacion de la primera tabla ejecutamos esto
+        if ( options.getFirstTableData &amp;&amp; result.tableNames.length ) {
+
+          // devolvemos la primer tabla
+          return getTableData( options, result.tableNames[ 0 ] )
+                      .then( function onTableDataResolved( firstTable ) {
+                        result.table = firstTable;
+                        resolve( result );
+                        return result.table;
+                      } );
+        }
+
+        // si no se pide la primer tabla, o no hay tablas, solo devolvemos el detalle de tablas/hojas
+        resolve( result );
+        return result;
+
+      } catch ( exception ) {
+        // en caso de error, la promesa escalara el error hacia sus subscriptores
+        error( exception );
+      }
+    } );
   }
 
+    // TESTS:
+        // VERIFICAR QUE SE DEVUELVEN TODAS LAS COLUMNAS
+        // VERIFICAR QUE SE DEVUELVE EL HEADER
+        // PROBAR EL CASO DONDE EL EXCEL NO TIENE HOJAS
+        // PROBAR EL CASO DONDE EL EXCEL NO TIENE LA HOJA ESPECIFICADA
+    // TODO:
+        // ENVIAR COLUMN DATA TYPE
   /**
-   * @description
-   * Scaffolds the main window
-   * @returns { Boolean } exit code
+   * @name getTableData
+   * @description obtiene las columnas y el conjunto de filas para la tabla especificada.
+   * @param {Object} params Opciones y configuracion para las tablas, filePath
+   * @param {String} tableName Tabla/Hoja de la que se desean extraer los datos
+   * @returns {Object}
+   * {
+   *  data {Array}: Filas con todos los valores,
+   *  columns {Array}: Especificacion de columnas (titulo, data, y tipo de dato)
+   * }
    */
-  function createMainWindow() {
-    // Load the previous window state with fallback to defaults
-    let mainWindowState = windowStateKeeper( {
-      defaultWidth: 1024,
-      defaultHeight: 768
-    } )
+  function getTableData( params, tableName ) {
+    var worksheet,
+      rowData = [],
+      oldRow = 0,
+      cellAddress,
+      result = {
+        data: [],
+        columns: []
+      },
+      currentRow;
 
-    const win = new electron.BrowserWindow( {
-      'width': mainWindowState.width,
-      'height': mainWindowState.height,
-      'x': mainWindowState.x,
-      'y': mainWindowState.y,
-      'title': app.getName(),
-      'icon': path.join( __dirname, '/app/assets/img/icon.png' ),
-      // Hide your application until your page has loaded
-      'show': false,
-      'webPreferences': {
-        // Disabling node integration allows to use libraries such as jQuery/React, etc
-        'nodeIntegration': pjson.config.nodeIntegration || true,
-        'preload': path.resolve( path.join( __dirname, '/backend/preload.js' ) )
+    // retornamos una promesa, ideal en el caso de operaciones asincronicas
+    return new Promise( function onTableData( resolve, error ) {
+      try {
+
+        // si todavia no se leyo el archivo, leemos el mismo.
+        if ( !workbook ) {
+          _.merge( options, params );
+          workbook = xlsx.readFile( options.filePath );
+        }
+
+        // obtenemos una referencia a la tabla solicitada
+        worksheet = workbook.Sheets[ tableName ]
+
+        // si el excel no tiene hojas, devolvemos una respuesta vacia
+        if ( !worksheet ) {
+          resolve( result );
+          return result;
+        }
+
+        // recorremos todas las celdas de la hoja
+        for ( cellAddress in worksheet ) {
+          // las celdas que empiezan con '!' son las que contienen metada
+          if ( cellAddress[ 0 ] === '!' ) {
+            continue;
+          }
+          // obtenemos el numero de fila de la celda actual
+          currentRow = xlsx.utils.decode_cell( cellAddress ).r;
+
+          if ( oldRow !== currentRow ) {
+            // hubo un cambio de fila
+            oldRow = currentRow;
+
+            if ( currentRow === 1 ) {
+              // si la fila nueva es la 1 (o sea la segunda),
+              // cargamos la primera fila (0), como la cabecera de la tabla
+              result.columns = rowData.map( function mapRow( row ) {
+                return {
+                  title: row
+                };
+              } );
+
+            } else {
+              // agregamos la fila a la coleccion de filas
+              result.data.push( rowData );
+            }
+            // borramos la fila temporal, para la nueva fila
+            rowData = [];
+          }
+
+          // agregamos el valor de cada celda a la fila actual
+          rowData.push( worksheet[ cellAddress ].v );
+        }
+
+        resolve( result );
+      } catch ( exception ) {
+        error( exception );
       }
-    } )
-
-    // Let us register listeners on the window, so we can update the state
-    // automatically (the listeners will be removed when the window is closed)
-    // and restore the maximized or full screen state
-    mainWindowState.manage( win )
-
-    // Remove file:// if you need to load http URLs
-    win.loadURL( `file://${__dirname}/${pjson.config.url}`, {} )
-
-    win.on( 'closed', onClosed )
-
-    // Then, when everything is loaded, show the window and focus it so it pops up for the user
-    // Yon can also use: win.webContents.on('did-finish-load')
-    win.on( 'ready-to-show', () => {
-      win.show()
-      win.focus()
-    } )
-
-    win.on( 'unresponsive', function onUnresponsive() {
-      // In the real world you should display a box and do something
-      console.warn( 'The windows is not responding' )
-    } )
-
-    win.webContents.on( 'did-fail-load', ( error, errorCode, errorDescription ) => {
-      var errorMessage
-
-      if ( errorCode === -105 ) {
-        errorMessage = errorDescription || '[Connection Error] The host name could not be resolved, check your network connection'
-        console.log( errorMessage )
-      } else {
-        errorMessage = errorDescription || 'Unknown error'
-      }
-
-      error.sender.loadURL( `file://${__dirname}/error.html` )
-      win.webContents.on( 'did-finish-load', () => {
-        win.webContents.send( 'app-error', errorMessage )
-      } )
-    } )
-
-    win.webContents.on( 'crashed', () => {
-      // In the real world you should display a box and do something
-      console.error( 'The browser window has just crashed' )
-    } )
-
-    win.webContents.on( 'did-finish-load', () => {
-      win.webContents.send( 'hello' )
-    } )
-
-    return win
+    } );
   }
 
-  app.on( 'window-all-closed', () => {
-    if ( process.platform !== 'darwin' ) {
-      app.quit()
-    }
-  } )
+  return {
+    setDataSource: setDataSource,
+    getTableData: getTableData
+  }
 
-  app.on( 'activate', () => {
-    if ( !mainWindow ) {
-      mainWindow = createMainWindow()
-    }
-  } )
-
-  app.setAsDefaultProtocolClient( 'electron' );
-  app.on( 'ready', () => {
-    Menu.setApplicationMenu( createMenu() )
-    mainWindow = createMainWindow()
-
-
-    // Manage automatic updates
-    try {
-      require( './lib/auto-update/update' )( {
-        url: ( pjson.config.update ) ? pjson.config.update.url || false : false,
-        version: app.getVersion()
-      } )
-      ipc.on( 'update-downloaded', ( autoUpdater ) => {
-        // Elegant solution: display unobtrusive notification messages
-        mainWindow.webContents.send( 'update-downloaded' )
-        ipc.on( 'update-and-restart', () => {
-          autoUpdater.quitAndInstall()
-        } )
-
-        // Basic solution: display a message box to the user
-        // var updateNow = dialog.showMessageBox(mainWindow, {
-        //   type: 'question',
-        //   buttons: ['Yes', 'No'],
-        //   defaultId: 0,
-        //   cancelId: 1,
-        //   title: 'Update available',
-        //   message: 'There is an update available, do you want to restart and install it now?'
-        // })
-        //
-        // if (updateNow === 0) {
-        //   autoUpdater.quitAndInstall()
-        // }
-      } )
-    } catch ( e ) {
-      console.error( e.message )
-      dialog.showErrorBox( 'Update Error', e.message )
-    }
-  } )
-
-  app.on( 'will-quit', () => {} )
-
-  ipc.on( 'open-info-window', () => {
-    if ( infoWindow ) {
-      return
-    }
-    infoWindow = new electron.BrowserWindow( {
-      width: 600,
-      height: 600,
-      resizable: false
-    } )
-    infoWindow.loadURL( `file://${__dirname}/info.html` )
-
-    infoWindow.on( 'closed', () => {
-      infoWindow = null
-    } )
-  } )
-
-  // Listen for sync message from renderer process
-  ipc.on( 'electron-msg', ( event, arg ) => {
-    mainWindow.webContents.send( arg.msg, arg.data );
-  } );
-
-  ipc.on( 'renderer-msg', ( event, arg ) => {
-    mainWindow.webContents.send( 'electron-msg', arg );
-  } );
 }
 
-/**
- * @name makeSingleInstance
- * @description
- * Make this app a single instance app.
- *
- * The main window will be restored and focused instead of a second window
- * opened when a person attempts to launch a second instance.
- *
- * Returns true if the current version of the app should quit instead of
- * launching.
- * @returns  { Object } singleton instance
- */
-function makeSingleInstance() {
-  return app.makeSingleInstance( () => {
-    if ( mainWindow ) {
-      if ( mainWindow.isMinimized() ) {
-        mainWindow.restore()
-      }
-      mainWindow.focus()
-    }
-  } )
-}
 
-/**
- * @name createMenu
- *
- * @returns { Object } Menu
- */
-function createMenu() {
-  return Menu.buildFromTemplate( require( './lib/menu' ) )
-}
-
-// Manage Squirrel startup event (Windows)
-require( './lib/auto-update/startup' )( initialize )
+module.exports = excelAdapter;
 </code></pre>
         </article>
     </section>

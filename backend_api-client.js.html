@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: main.js</title>
+    <title>JSDoc: Source: backend/api-client.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: main.js</h1>
+    <h1 class="page-title">Source: backend/api-client.js</h1>
 
     
 
@@ -26,278 +26,142 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>/*eslint no-console: [2, { allow: ["warn", "error","info","log","debug"] }] */
-
-'use strict'
-
-const electron = require( 'electron' ),
-  app = electron.app,
-  Menu = require( 'electron' ).Menu,
-  dialog = require( 'electron' ).dialog,
-  ipc = require( 'electron' ).ipcMain,
-  path = require( 'path' ),
-  pjson = require( './package.json' ),
-  _ = require( 'lodash' ),
-  windowStateKeeper = require( 'electron-window-state' );
-
-var config = {}
-
-// Use system log facility, should work on Windows too
-require( './lib/log' )( pjson.productName || 'CMIDataCollector' )
-
-// Manage unhandled exceptions as early as possible
-process.on( 'uncaughtException', ( e ) => {
-  console.error( `Caught unhandled exception: ${e}` )
-  dialog.showErrorBox( 'Caught unhandled exception', e.message || 'Unknown error message' )
-  app.quit()
-} )
-
-// Load build target configuration file
-try {
-  config = require( './config.json' )
-  _.merge( pjson.config, config )
-} catch ( e ) {
-  console.warn( 'No config file loaded, using defaults' )
-}
-
-let isDev = ( require( 'electron-is-dev' ) || pjson.config.debug ),
-  // Prevent window being garbage collected
-  mainWindow,
-  // Other windows we may need
-  infoWindow = null
-
-global.appSettings = pjson.config
-
-if ( isDev ) {
-  console.info( 'Running in development' )
-} else {
-  console.info( 'Running in production' )
-}
-
-console.debug( JSON.stringify( pjson.config ) )
-
-// Adds debug features like hotkeys for triggering dev tools and reload
-// (disabled in production, unless the menu item is displayed)
-require( 'electron-debug' )( {
-  // enabled: pjson.config.debug || isDev || false
-  enabled: true
-} )
-
-
-app.setName( pjson.productName || 'SkelEktron' )
-
-/**
- * @returns { Boolean } quit the apps
+            <pre class="prettyprint source linenums"><code>/**
+ * @name apiClient
+ * @description modulo encargado de consumir los microservicios expuestos
+ * @returns {Object} Modulo de llamadas a microservicios
  */
-function initialize() {
-  var shouldQuit = makeSingleInstance()
-  if ( shouldQuit ) {
-    return app.quit()
+module.exports = function apiClient() {
+  var request = require( 'request' ).defaults( getServerInfo() ),
+    _ = require( 'lodash' );
+
+
+  /**
+   * @name getServerInfo
+   * @description Obtiene los datos por defecto de configuracion para comunicarse con los microservicios
+   * @returns {Object} Configuracion para llamar los microservicios
+   */
+  function getServerInfo() {
+        // TODO, get data from env file
+    return {
+      baseUrl: 'http://localhost:8080/api',
+      json: true
+    };
   }
 
   /**
-   * @name onClosed
-   * @description
-   * Dereference used windows
-   * for multiple windows store them in an array
-   * @returns { Void } void
+   * @name saveDataSource
+   * @description Invoca el microservicio que guarda las fuentes de datos
+   * @param {String} type - Indica el tipo de microservicio "database" o "file"
+   * @param {Object} options - Contiene los datos especificos de la fuente de datos
+   * @param {Array&lt;String>} tables - Lista de tablas encontradas en la fuente de datos
+   * @returns {Promise} - Promesa de llamada http
    */
-  function onClosed() {
-    mainWindow = null
-    infoWindow = null
+  function saveDataSource( type, options, tables ) {
+
+    var datasource = {
+      type: type,
+      title: options.title,
+      tables: tables
+    };
+
+    if ( type === 'database' ) {
+      datasource.type = 1;
+      datasource.database = {
+        engine: options.engine,
+        host: options.host,
+        port: options.port,
+        database: options.database,
+        user: options.user,
+        password: options.password
+      };
+    } else {
+      datasource.type = 2;
+      datasource.file = {
+        filePath: options.filePath,
+        extension: options.extension
+      };
+    }
+
+    return POST( '/datasources', datasource );
+  }
+
+
+  /**
+   * @name saveIndicatorData
+   * @description Invoca al microservicio que guarda los datos de importacion de indicador
+   * @param {any} indicatorData - Consolidado mensual de datos de indicador
+   * @returns {Promise} - Promesa de llamada http
+   */
+  function saveIndicatorData( indicatorData ) {
+    return POST( 'indicatorsdata', indicatorData );
   }
 
   /**
-   * @description
-   * Scaffolds the main window
-   * @returns { Boolean } exit code
+   * @name getDatasources
+   * @description Invoca al microservicio para obtener el listado de fuentes de datos
+   * @returns {Promise} - Promesa de llamada http
    */
-  function createMainWindow() {
-    // Load the previous window state with fallback to defaults
-    let mainWindowState = windowStateKeeper( {
-      defaultWidth: 1024,
-      defaultHeight: 768
-    } )
-
-    const win = new electron.BrowserWindow( {
-      'width': mainWindowState.width,
-      'height': mainWindowState.height,
-      'x': mainWindowState.x,
-      'y': mainWindowState.y,
-      'title': app.getName(),
-      'icon': path.join( __dirname, '/app/assets/img/icon.png' ),
-      // Hide your application until your page has loaded
-      'show': false,
-      'webPreferences': {
-        // Disabling node integration allows to use libraries such as jQuery/React, etc
-        'nodeIntegration': pjson.config.nodeIntegration || true,
-        'preload': path.resolve( path.join( __dirname, '/backend/preload.js' ) )
-      }
-    } )
-
-    // Let us register listeners on the window, so we can update the state
-    // automatically (the listeners will be removed when the window is closed)
-    // and restore the maximized or full screen state
-    mainWindowState.manage( win )
-
-    // Remove file:// if you need to load http URLs
-    win.loadURL( `file://${__dirname}/${pjson.config.url}`, {} )
-
-    win.on( 'closed', onClosed )
-
-    // Then, when everything is loaded, show the window and focus it so it pops up for the user
-    // Yon can also use: win.webContents.on('did-finish-load')
-    win.on( 'ready-to-show', () => {
-      win.show()
-      win.focus()
-    } )
-
-    win.on( 'unresponsive', function onUnresponsive() {
-      // In the real world you should display a box and do something
-      console.warn( 'The windows is not responding' )
-    } )
-
-    win.webContents.on( 'did-fail-load', ( error, errorCode, errorDescription ) => {
-      var errorMessage
-
-      if ( errorCode === -105 ) {
-        errorMessage = errorDescription || '[Connection Error] The host name could not be resolved, check your network connection'
-        console.log( errorMessage )
-      } else {
-        errorMessage = errorDescription || 'Unknown error'
-      }
-
-      error.sender.loadURL( `file://${__dirname}/error.html` )
-      win.webContents.on( 'did-finish-load', () => {
-        win.webContents.send( 'app-error', errorMessage )
-      } )
-    } )
-
-    win.webContents.on( 'crashed', () => {
-      // In the real world you should display a box and do something
-      console.error( 'The browser window has just crashed' )
-    } )
-
-    win.webContents.on( 'did-finish-load', () => {
-      win.webContents.send( 'hello' )
-    } )
-
-    return win
+  function getDatasources() {
+    return GET( 'datasources' )
+            .then( function onGetDatasources( response ) {
+              return {
+                databases: _.filter( response, _.matchesProperty( 'type', 1 ) ),
+                files: _.filter( response, _.matchesProperty( 'type', 2 ) )
+              };
+            } );
   }
 
-  app.on( 'window-all-closed', () => {
-    if ( process.platform !== 'darwin' ) {
-      app.quit()
-    }
-  } )
+  /**
+   * @name POST
+   * @description Contenedor que encapsula las configuraciones necesarias para realizar un POST a los microservicios
+   * @param {any} url - Url relativa del microservicio
+   * @param {any} body - Valores que se envian al mismo
+   * @returns {Promise} - Promesa de llamada http
+   */
+  function POST( url, body ) {
+    return new Promise( function onResponse( resolve, reject ) {
+      request( {
+        url: url,
+        method: 'POST',
+        body: body
+      }, function onPostResponse( err, xhr, response ) {
+        if ( err ) {
+          return reject( err );
+        }
+        return resolve( response );
+      } );
+    } );
+  }
 
-  app.on( 'activate', () => {
-    if ( !mainWindow ) {
-      mainWindow = createMainWindow()
-    }
-  } )
+  /**
+   * @name GET
+   * @description Contenedor que encapsula las configuraciones necesarias para realizar un GET a los microservicios
+   * @param {any} url - Url relativa del microservicio
+   * @param {any} data - Valores que se envian al mismo
+   * @returns {Promise} - Promesa de llamada http
+   */
+  function GET( url, data ) {
+    return new Promise( function onResponse( resolve, reject ) {
+      request( {
+        url: url,
+        method: 'GET',
+        data: data || {}
+      }, function onGETResponse( err, xhr, response ) {
+        if ( err ) {
+          return reject( err );
+        }
+        return resolve( response );
+      } );
+    } );
+  }
 
-  app.setAsDefaultProtocolClient( 'electron' );
-  app.on( 'ready', () => {
-    Menu.setApplicationMenu( createMenu() )
-    mainWindow = createMainWindow()
-
-
-    // Manage automatic updates
-    try {
-      require( './lib/auto-update/update' )( {
-        url: ( pjson.config.update ) ? pjson.config.update.url || false : false,
-        version: app.getVersion()
-      } )
-      ipc.on( 'update-downloaded', ( autoUpdater ) => {
-        // Elegant solution: display unobtrusive notification messages
-        mainWindow.webContents.send( 'update-downloaded' )
-        ipc.on( 'update-and-restart', () => {
-          autoUpdater.quitAndInstall()
-        } )
-
-        // Basic solution: display a message box to the user
-        // var updateNow = dialog.showMessageBox(mainWindow, {
-        //   type: 'question',
-        //   buttons: ['Yes', 'No'],
-        //   defaultId: 0,
-        //   cancelId: 1,
-        //   title: 'Update available',
-        //   message: 'There is an update available, do you want to restart and install it now?'
-        // })
-        //
-        // if (updateNow === 0) {
-        //   autoUpdater.quitAndInstall()
-        // }
-      } )
-    } catch ( e ) {
-      console.error( e.message )
-      dialog.showErrorBox( 'Update Error', e.message )
-    }
-  } )
-
-  app.on( 'will-quit', () => {} )
-
-  ipc.on( 'open-info-window', () => {
-    if ( infoWindow ) {
-      return
-    }
-    infoWindow = new electron.BrowserWindow( {
-      width: 600,
-      height: 600,
-      resizable: false
-    } )
-    infoWindow.loadURL( `file://${__dirname}/info.html` )
-
-    infoWindow.on( 'closed', () => {
-      infoWindow = null
-    } )
-  } )
-
-  // Listen for sync message from renderer process
-  ipc.on( 'electron-msg', ( event, arg ) => {
-    mainWindow.webContents.send( arg.msg, arg.data );
-  } );
-
-  ipc.on( 'renderer-msg', ( event, arg ) => {
-    mainWindow.webContents.send( 'electron-msg', arg );
-  } );
-}
-
-/**
- * @name makeSingleInstance
- * @description
- * Make this app a single instance app.
- *
- * The main window will be restored and focused instead of a second window
- * opened when a person attempts to launch a second instance.
- *
- * Returns true if the current version of the app should quit instead of
- * launching.
- * @returns  { Object } singleton instance
- */
-function makeSingleInstance() {
-  return app.makeSingleInstance( () => {
-    if ( mainWindow ) {
-      if ( mainWindow.isMinimized() ) {
-        mainWindow.restore()
-      }
-      mainWindow.focus()
-    }
-  } )
-}
-
-/**
- * @name createMenu
- *
- * @returns { Object } Menu
- */
-function createMenu() {
-  return Menu.buildFromTemplate( require( './lib/menu' ) )
-}
-
-// Manage Squirrel startup event (Windows)
-require( './lib/auto-update/startup' )( initialize )
+  return {
+    saveDataSource: saveDataSource,
+    saveIndicatorData: saveIndicatorData,
+    getDatasources: getDatasources
+  };
+};
 </code></pre>
         </article>
     </section>

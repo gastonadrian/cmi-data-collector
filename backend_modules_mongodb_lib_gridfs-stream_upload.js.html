@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: backend/modules/mongodb/lib/gridfs-stream/upload.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: backend/modules/mongodb/lib/gridfs-stream/upload.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>var core = require('mongodb-core');
+var crypto = require('crypto');
+var stream = require('stream');
+var util = require('util');
+
+var ERROR_NAMESPACE_NOT_FOUND = 26;
+
+module.exports = GridFSBucketWriteStream;
+
+/**
+ * A writable stream that enables you to write buffers to GridFS.
+ *
+ * Do not instantiate this class directly. Use `openUploadStream()` instead.
+ *
+ * @class
+ * @param {GridFSBucket} bucket Handle for this stream's corresponding bucket
+ * @param {string} filename The value of the 'filename' key in the files doc
+ * @param {object} [options=null] Optional settings.
+ * @param {string|number|object} [options.id=null] Custom file id for the GridFS file.
+ * @param {number} [options.chunkSizeBytes=null] The chunk size to use, in bytes
+ * @param {number} [options.w=null] The write concern
+ * @param {number} [options.wtimeout=null] The write concern timeout
+ * @param {number} [options.j=null] The journal write concern
+ * @fires GridFSBucketWriteStream#error
+ * @fires GridFSBucketWriteStream#finish
+ * @return {GridFSBucketWriteStream} a GridFSBucketWriteStream instance.
+ */
+
+function GridFSBucketWriteStream(bucket, filename, options) {
+  options = options || {};
+  this.bucket = bucket;
+  this.chunks = bucket.s._chunksCollection;
+  this.filename = filename;
+  this.files = bucket.s._filesCollection;
+  this.options = options;
+
+  this.id = options.id ? options.id : core.BSON.ObjectId();
+  this.chunkSizeBytes = this.options.chunkSizeBytes;
+  this.bufToStore = new Buffer(this.chunkSizeBytes);
+  this.length = 0;
+  this.md5 = crypto.createHash('md5');
+  this.n = 0;
+  this.pos = 0;
+  this.state = {
+    streamEnd: false,
+    outstandingRequests: 0,
+    errored: false,
+    aborted: false,
+    promiseLibrary: this.bucket.s.promiseLibrary
+  };
+
+  if (!this.bucket.s.calledOpenUploadStream) {
+    this.bucket.s.calledOpenUploadStream = true;
+
+    var _this = this;
+    checkIndexes(this, function() {
+      _this.bucket.s.checkedIndexes = true;
+      _this.bucket.emit('index');
+    });
+  }
+}
+
+util.inherits(GridFSBucketWriteStream, stream.Writable);
+
+/**
+ * An error occurred
+ *
+ * @event GridFSBucketWriteStream#error
+ * @type {Error}
+ */
+
+/**
+ * `end()` was called and the write stream successfully wrote the file
+ * metadata and all the chunks to MongoDB.
+ *
+ * @event GridFSBucketWriteStream#finish
+ * @type {object}
+ */
+
+/**
+ * Write a buffer to the stream.
+ *
+ * @method
+ * @param {Buffer} chunk Buffer to write
+ * @param {String} encoding Optional encoding for the buffer
+ * @param {Function} callback Function to call when the chunk was added to the buffer, or if the entire chunk was persisted to MongoDB if this chunk caused a flush.
+ * @return {Boolean} False if this write required flushing a chunk to MongoDB. True otherwise.
+ */
+
+GridFSBucketWriteStream.prototype.write = function(chunk, encoding, callback) {
+  var _this = this;
+  return waitForIndexes(this, function() {
+    return doWrite(_this, chunk, encoding, callback);
+  });
+};
+
+/**
+ * Places this write stream into an aborted state (all future writes fail)
+ * and deletes all chunks that have already been written.
+ *
+ * @method
+ * @param {GridFSBucket~errorCallback} callback called when chunks are successfully removed or error occurred
+ * @return {Promise} if no callback specified
+ */
+
+GridFSBucketWriteStream.prototype.abort = function(callback) {
+  if (this.state.streamEnd) {
+    var error = new Error('Cannot abort a stream that has already completed');
+    if (typeof callback == 'function') {
+      return callback(error);
+    }
+    return this.state.promiseLibrary.reject(error);
+  }
+  if (this.state.aborted) {
+    error = new Error('Cannot call abort() on a stream twice');
+    if (typeof callback == 'function') {
+      return callback(error);
+    }
+    return this.state.promiseLibrary.reject(error);
+  }
+  this.state.aborted = true;
+  this.chunks.deleteMany({ files_id: this.id }, function(error) {
+    if(typeof callback == 'function') callback(error);
+  });
+};
+
+/**
+ * Tells the stream that no more data will be coming in. The stream will
+ * persist the remaining data to MongoDB, write the files document, and
+ * then emit a 'finish' event.
+ *
+ * @method
+ * @param {Buffer} chunk Buffer to write
+ * @param {String} encoding Optional encoding for the buffer
+ * @param {Function} callback Function to call when all files and chunks have been persisted to MongoDB
+ */
+
+GridFSBucketWriteStream.prototype.end = function(chunk, encoding, callback) {
+  var _this = this;
+  if(typeof chunk == 'function') {
+    callback = chunk, chunk = null, encoding = null;
+  } else if(typeof encoding == 'function') {
+    callback = encoding, encoding = null;
+  }
+
+  if (checkAborted(this, callback)) {
+    return;
+  }
+  this.state.streamEnd = true;
+
+  if (callback) {
+    this.once('finish', function(result) {
+      callback(null, result);
+    });
+  }
+
+  if (!chunk) {
+    waitForIndexes(this, function() {
+      writeRemnant(_this);
+    });
+    return;
+  }
+
+  this.write(chunk, encoding, function() {
+    writeRemnant(_this);
+  });
+};
+
+/**
+ * @ignore
+ */
+
+function __handleError(_this, error, callback) {
+  if (_this.state.errored) {
+    return;
+  }
+  _this.state.errored = true;
+  if (callback) {
+    return callback(error);
+  }
+  _this.emit('error', error);
+}
+
+/**
+ * @ignore
+ */
+
+function createChunkDoc(filesId, n, data) {
+  return {
+    _id: core.BSON.ObjectId(),
+    files_id: filesId,
+    n: n,
+    data: data
+  };
+}
+
+/**
+ * @ignore
+ */
+
+function checkChunksIndex(_this, callback) {
+  _this.chunks.listIndexes().toArray(function(error, indexes) {
+    if (error) {
+      // Collection doesn't exist so create index
+      if (error.code === ERROR_NAMESPACE_NOT_FOUND) {
+        var index = { files_id: 1, n: 1 };
+        _this.chunks.createIndex(index, { background: false, unique: true }, function(error) {
+          if (error) {
+            return callback(error);
+          }
+
+          callback();
+        });
+        return;
+      }
+      return callback(error);
+    }
+
+    var hasChunksIndex = false;
+    indexes.forEach(function(index) {
+      if (index.key) {
+        var keys = Object.keys(index.key);
+        if (keys.length === 2 &amp;&amp; index.key.files_id === 1 &amp;&amp;
+            index.key.n === 1) {
+          hasChunksIndex = true;
+        }
+      }
+    });
+
+    if (hasChunksIndex) {
+      callback();
+    } else {
+      index = { files_id: 1, n: 1 };
+      var indexOptions = getWriteOptions(_this);
+
+      indexOptions.background = false;
+      indexOptions.unique = true;
+
+      _this.chunks.createIndex(index, indexOptions, function(error) {
+        if (error) {
+          return callback(error);
+        }
+
+        callback();
+      });
+    }
+  });
+}
+
+/**
+ * @ignore
+ */
+
+function checkDone(_this, callback) {
+  if (_this.state.streamEnd &amp;&amp;
+      _this.state.outstandingRequests === 0 &amp;&amp;
+      !_this.state.errored) {
+    var filesDoc = createFilesDoc(_this.id, _this.length, _this.chunkSizeBytes,
+      _this.md5.digest('hex'), _this.filename, _this.options.contentType,
+      _this.options.aliases, _this.options.metadata);
+
+    if (checkAborted(_this, callback)) {
+      return false;
+    }
+
+    _this.files.insert(filesDoc, getWriteOptions(_this), function(error) {
+      if (error) {
+        return __handleError(_this, error, callback);
+      }
+      _this.emit('finish', filesDoc);
+    });
+
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * @ignore
+ */
+
+function checkIndexes(_this, callback) {
+  _this.files.findOne({}, { _id: 1 }, function(error, doc) {
+    if (error) {
+      return callback(error);
+    }
+    if (doc) {
+      return callback();
+    }
+
+    _this.files.listIndexes().toArray(function(error, indexes) {
+      if (error) {
+        // Collection doesn't exist so create index
+        if (error.code === ERROR_NAMESPACE_NOT_FOUND) {
+          var index = { filename: 1, uploadDate: 1 };
+          _this.files.createIndex(index, { background: false }, function(error) {
+            if (error) {
+              return callback(error);
+            }
+
+            checkChunksIndex(_this, callback);
+          });
+          return;
+        }
+        return callback(error);
+      }
+
+      var hasFileIndex = false;
+      indexes.forEach(function(index) {
+        var keys = Object.keys(index.key);
+        if (keys.length === 2 &amp;&amp; index.key.filename === 1 &amp;&amp;
+            index.key.uploadDate === 1) {
+          hasFileIndex = true;
+        }
+      });
+
+      if (hasFileIndex) {
+        checkChunksIndex(_this, callback);
+      } else {
+        index = { filename: 1, uploadDate: 1 };
+
+        var indexOptions = getWriteOptions(_this);
+
+        indexOptions.background = false;
+
+        _this.files.createIndex(index, indexOptions, function(error) {
+          if (error) {
+            return callback(error);
+          }
+
+          checkChunksIndex(_this, callback);
+        });
+      }
+    });
+  });
+}
+
+/**
+ * @ignore
+ */
+
+function createFilesDoc(_id, length, chunkSize, md5, filename, contentType,
+  aliases, metadata) {
+  var ret = {
+    _id: _id,
+    length: length,
+    chunkSize: chunkSize,
+    uploadDate: new Date(),
+    md5: md5,
+    filename: filename
+  };
+
+  if (contentType) {
+    ret.contentType = contentType;
+  }
+
+  if (aliases) {
+    ret.aliases = aliases;
+  }
+
+  if (metadata) {
+    ret.metadata = metadata;
+  }
+
+  return ret;
+}
+
+/**
+ * @ignore
+ */
+
+function doWrite(_this, chunk, encoding, callback) {
+  if (checkAborted(_this, callback)) {
+    return false;
+  }
+
+  var inputBuf = (Buffer.isBuffer(chunk)) ?
+    chunk : new Buffer(chunk, encoding);
+
+  _this.length += inputBuf.length;
+
+  // Input is small enough to fit in our buffer
+  if (_this.pos + inputBuf.length &lt; _this.chunkSizeBytes) {
+    inputBuf.copy(_this.bufToStore, _this.pos);
+    _this.pos += inputBuf.length;
+
+    callback &amp;&amp; callback();
+
+    // Note that we reverse the typical semantics of write's return value
+    // to be compatible with node's `.pipe()` function.
+    // True means client can keep writing.
+    return true;
+  }
+
+  // Otherwise, buffer is too big for current chunk, so we need to flush
+  // to MongoDB.
+  var inputBufRemaining = inputBuf.length;
+  var spaceRemaining = _this.chunkSizeBytes - _this.pos;
+  var numToCopy = Math.min(spaceRemaining, inputBuf.length);
+  var outstandingRequests = 0;
+  while (inputBufRemaining > 0) {
+    var inputBufPos = inputBuf.length - inputBufRemaining;
+    inputBuf.copy(_this.bufToStore, _this.pos,
+      inputBufPos, inputBufPos + numToCopy);
+    _this.pos += numToCopy;
+    spaceRemaining -= numToCopy;
+    if (spaceRemaining === 0) {
+      _this.md5.update(_this.bufToStore);
+      var doc = createChunkDoc(_this.id, _this.n, _this.bufToStore);
+      ++_this.state.outstandingRequests;
+      ++outstandingRequests;
+
+      if (checkAborted(_this, callback)) {
+        return false;
+      }
+
+      _this.chunks.insert(doc, getWriteOptions(_this), function(error) {
+        if (error) {
+          return __handleError(_this, error);
+        }
+        --_this.state.outstandingRequests;
+        --outstandingRequests;
+        if (!outstandingRequests) {
+          _this.emit('drain', doc);
+          callback &amp;&amp; callback();
+          checkDone(_this);
+        }
+      });
+
+      spaceRemaining = _this.chunkSizeBytes;
+      _this.pos = 0;
+      ++_this.n;
+    }
+    inputBufRemaining -= numToCopy;
+    numToCopy = Math.min(spaceRemaining, inputBufRemaining);
+  }
+
+  // Note that we reverse the typical semantics of write's return value
+  // to be compatible with node's `.pipe()` function.
+  // False means the client should wait for the 'drain' event.
+  return false;
+}
+
+/**
+ * @ignore
+ */
+
+function getWriteOptions(_this) {
+  var obj = {};
+  if (_this.options.writeConcern) {
+    obj.w = _this.options.writeConcern.w;
+    obj.wtimeout = _this.options.writeConcern.wtimeout;
+    obj.j = _this.options.writeConcern.j;
+  }
+  return obj;
+}
+
+/**
+ * @ignore
+ */
+
+function waitForIndexes(_this, callback) {
+  if (_this.bucket.s.checkedIndexes) {
+    return callback(false);
+  }
+
+  _this.bucket.once('index', function() {
+    callback(true);
+  });
+
+  return true;
+}
+
+/**
+ * @ignore
+ */
+
+function writeRemnant(_this, callback) {
+  // Buffer is empty, so don't bother to insert
+  if (_this.pos === 0) {
+    return checkDone(_this, callback);
+  }
+
+  ++_this.state.outstandingRequests;
+
+  // Create a new buffer to make sure the buffer isn't bigger than it needs
+  // to be.
+  var remnant = new Buffer(_this.pos);
+  _this.bufToStore.copy(remnant, 0, 0, _this.pos);
+  _this.md5.update(remnant);
+  var doc = createChunkDoc(_this.id, _this.n, remnant);
+
+  // If the stream was aborted, do not write remnant
+  if (checkAborted(_this, callback)) {
+    return false;
+  }
+
+  _this.chunks.insert(doc, getWriteOptions(_this), function(error) {
+    if (error) {
+      return __handleError(_this, error);
+    }
+    --_this.state.outstandingRequests;
+    checkDone(_this);
+  });
+}
+
+/**
+ * @ignore
+ */
+
+function checkAborted(_this, callback) {
+  if (_this.state.aborted) {
+    if(typeof callback == 'function') {
+      callback(new Error('this stream has been aborted'));
+    }
+    return true;
+  }
+  return false;
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Externals</h3><ul><li><a href="external-Duplex.html">Duplex</a></li><li><a href="external-Readable.html">Readable</a></li></ul><h3>Classes</h3><ul><li><a href="Admin.html">Admin</a></li><li><a href="AggregationCursor.html">AggregationCursor</a></li><li><a href="BulkWriteResult.html">BulkWriteResult</a></li><li><a href="Chunk.html">Chunk</a></li><li><a href="Collection.html">Collection</a></li><li><a href="CommandCursor.html">CommandCursor</a></li><li><a href="Cursor.html">Cursor</a></li><li><a href="Db.html">Db</a></li><li><a href="FindOperatorsOrdered.html">FindOperatorsOrdered</a></li><li><a href="FindOperatorsUnordered.html">FindOperatorsUnordered</a></li><li><a href="GridFSBucket.html">GridFSBucket</a></li><li><a href="GridFSBucketReadStream.html">GridFSBucketReadStream</a></li><li><a href="GridFSBucketWriteStream.html">GridFSBucketWriteStream</a></li><li><a href="GridStore.html">GridStore</a></li><li><a href="GridStoreStream.html">GridStoreStream</a></li><li><a href="MongoClient.html">MongoClient</a></li><li><a href="Mongos.html">Mongos</a></li><li><a href="OrderedBulkOperation.html">OrderedBulkOperation</a></li><li><a href="ReadPreference.html">ReadPreference</a></li><li><a href="ReplSet.html">ReplSet</a></li><li><a href="Server.html">Server</a></li><li><a href="UnorderedBulkOperation.html">UnorderedBulkOperation</a></li><li><a href="WriteConcernError.html">WriteConcernError</a></li><li><a href="WriteError.html">WriteError</a></li></ul><h3>Events</h3><ul><li><a href="AggregationCursor.html#event:close">close</a></li><li><a href="AggregationCursor.html#event:data">data</a></li><li><a href="AggregationCursor.html#event:end">end</a></li><li><a href="AggregationCursor.html#event:readable">readable</a></li><li><a href="CommandCursor.html#event:close">close</a></li><li><a href="CommandCursor.html#event:data">data</a></li><li><a href="CommandCursor.html#event:end">end</a></li><li><a href="CommandCursor.html#event:readable">readable</a></li><li><a href="Cursor.html#event:close">close</a></li><li><a href="Cursor.html#event:data">data</a></li><li><a href="Cursor.html#event:end">end</a></li><li><a href="Cursor.html#event:readable">readable</a></li><li><a href="Db.html#event:authenticated">authenticated</a></li><li><a href="Db.html#event:close">close</a></li><li><a href="Db.html#event:error">error</a></li><li><a href="Db.html#event:fullsetup">fullsetup</a></li><li><a href="Db.html#event:parseError">parseError</a></li><li><a href="Db.html#event:reconnect">reconnect</a></li><li><a href="Db.html#event:timeout">timeout</a></li><li><a href="GridFSBucket.html#event:index">index</a></li><li><a href="GridFSBucketReadStream.html#event:close">close</a></li><li><a href="GridFSBucketReadStream.html#event:data">data</a></li><li><a href="GridFSBucketReadStream.html#event:end">end</a></li><li><a href="GridFSBucketReadStream.html#event:error">error</a></li><li><a href="GridFSBucketReadStream.html#event:file">file</a></li><li><a href="GridFSBucketWriteStream.html#event:error">error</a></li><li><a href="GridFSBucketWriteStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:close">close</a></li><li><a href="GridStoreStream.html#event:data">data</a></li><li><a href="GridStoreStream.html#event:drain">drain</a></li><li><a href="GridStoreStream.html#event:end">end</a></li><li><a href="GridStoreStream.html#event:error">error</a></li><li><a href="GridStoreStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:pipe">pipe</a></li><li><a href="GridStoreStream.html#event:readable">readable</a></li><li><a href="GridStoreStream.html#event:unpipe">unpipe</a></li><li><a href="Mongos.html#event:close">close</a></li><li><a href="Mongos.html#event:connect">connect</a></li><li><a href="Mongos.html#event:error">error</a></li><li><a href="Mongos.html#event:fullsetup">fullsetup</a></li><li><a href="Mongos.html#event:ha">ha</a></li><li><a href="Mongos.html#event:joined">joined</a></li><li><a href="Mongos.html#event:left">left</a></li><li><a href="Mongos.html#event:open">open</a></li><li><a href="Mongos.html#event:parseError">parseError</a></li><li><a href="Mongos.html#event:timeout">timeout</a></li><li><a href="ReplSet.html#event:close">close</a></li><li><a href="ReplSet.html#event:connect">connect</a></li><li><a href="ReplSet.html#event:error">error</a></li><li><a href="ReplSet.html#event:fullsetup">fullsetup</a></li><li><a href="ReplSet.html#event:ha">ha</a></li><li><a href="ReplSet.html#event:joined">joined</a></li><li><a href="ReplSet.html#event:left">left</a></li><li><a href="ReplSet.html#event:open">open</a></li><li><a href="ReplSet.html#event:parseError">parseError</a></li><li><a href="ReplSet.html#event:timeout">timeout</a></li><li><a href="Server.html#event:close">close</a></li><li><a href="Server.html#event:connect">connect</a></li><li><a href="Server.html#event:error">error</a></li><li><a href="Server.html#event:parseError">parseError</a></li><li><a href="Server.html#event:reconnect">reconnect</a></li><li><a href="Server.html#event:timeout">timeout</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addDatabaseController">addDatabaseController</a></li><li><a href="global.html#apiClient">apiClient</a></li><li><a href="global.html#cancel">cancel</a></li><li><a href="global.html#convertReadPreference">convertReadPreference</a></li><li><a href="global.html#createMenu">createMenu</a></li><li><a href="global.html#csvAdapter">csvAdapter</a></li><li><a href="global.html#datasourceTableController">datasourceTableController</a></li><li><a href="global.html#disableZoomUI">disableZoomUI</a></li><li><a href="global.html#enableZoomUI">enableZoomUI</a></li><li><a href="global.html#excelAdapter">excelAdapter</a></li><li><a href="global.html#GET">GET</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataSourceProvider">getDataSourceProvider</a></li><li><a href="global.html#getDatasources">getDatasources</a></li><li><a href="global.html#getImportPreview">getImportPreview</a></li><li><a href="global.html#getImportQuery">getImportQuery</a></li><li><a href="global.html#getMonthlyData">getMonthlyData</a></li><li><a href="global.html#getServerInfo">getServerInfo</a></li><li><a href="global.html#getTableData">getTableData</a></li><li><a href="global.html#getTables">getTables</a></li><li><a href="global.html#getZoomUI">getZoomUI</a></li><li><a href="global.html#handleDatabaseOk">handleDatabaseOk</a></li><li><a href="global.html#homeController">homeController</a></li><li><a href="global.html#importData">importData</a></li><li><a href="global.html#importPreviewController">importPreviewController</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#jsonAdapter">jsonAdapter</a></li><li><a href="global.html#listDatasources">listDatasources</a></li><li><a href="global.html#mainController">mainController</a></li><li><a href="global.html#makeSingleInstance">makeSingleInstance</a></li><li><a href="global.html#mongoAdapter">mongoAdapter</a></li><li><a href="global.html#mssqlAdapter">mssqlAdapter</a></li><li><a href="global.html#mySqlAdapter">mySqlAdapter</a></li><li><a href="global.html#ok">ok</a></li><li><a href="global.html#onClosed">onClosed</a></li><li><a href="global.html#onConnectionError">onConnectionError</a></li><li><a href="global.html#openDatasourceFile">openDatasourceFile</a></li><li><a href="global.html#openMenu">openMenu</a></li><li><a href="global.html#POST">POST</a></li><li><a href="global.html#processDataSource">processDataSource</a></li><li><a href="global.html#queryImportCallback">queryImportCallback</a></li><li><a href="global.html#safeApply">safeApply</a></li><li><a href="global.html#saveDatabase">saveDatabase</a></li><li><a href="global.html#saveDataSource">saveDataSource</a></li><li><a href="global.html#saveIndicatorData">saveIndicatorData</a></li><li><a href="global.html#sendMessageToMain">sendMessageToMain</a></li><li><a href="global.html#setConnection">setConnection</a></li><li><a href="global.html#setConnString">setConnString</a></li><li><a href="global.html#setDataSource">setDataSource</a></li><li><a href="global.html#setupConnection">setupConnection</a></li><li><a href="global.html#showDatabaseDialog">showDatabaseDialog</a></li><li><a href="global.html#showFileDialog">showFileDialog</a></li><li><a href="global.html#utils">utils</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a> on Sat Feb 25 2017 00:40:14 GMT+0000 (UTC)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: main.js</title>
+    <title>JSDoc: Source: backend/modules/mongodb/lib/gridfs/chunk.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: main.js</h1>
+    <h1 class="page-title">Source: backend/modules/mongodb/lib/gridfs/chunk.js</h1>
 
     
 
@@ -26,278 +26,236 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>/*eslint no-console: [2, { allow: ["warn", "error","info","log","debug"] }] */
+            <pre class="prettyprint source linenums"><code>"use strict";
 
-'use strict'
-
-const electron = require( 'electron' ),
-  app = electron.app,
-  Menu = require( 'electron' ).Menu,
-  dialog = require( 'electron' ).dialog,
-  ipc = require( 'electron' ).ipcMain,
-  path = require( 'path' ),
-  pjson = require( './package.json' ),
-  _ = require( 'lodash' ),
-  windowStateKeeper = require( 'electron-window-state' );
-
-var config = {}
-
-// Use system log facility, should work on Windows too
-require( './lib/log' )( pjson.productName || 'CMIDataCollector' )
-
-// Manage unhandled exceptions as early as possible
-process.on( 'uncaughtException', ( e ) => {
-  console.error( `Caught unhandled exception: ${e}` )
-  dialog.showErrorBox( 'Caught unhandled exception', e.message || 'Unknown error message' )
-  app.quit()
-} )
-
-// Load build target configuration file
-try {
-  config = require( './config.json' )
-  _.merge( pjson.config, config )
-} catch ( e ) {
-  console.warn( 'No config file loaded, using defaults' )
-}
-
-let isDev = ( require( 'electron-is-dev' ) || pjson.config.debug ),
-  // Prevent window being garbage collected
-  mainWindow,
-  // Other windows we may need
-  infoWindow = null
-
-global.appSettings = pjson.config
-
-if ( isDev ) {
-  console.info( 'Running in development' )
-} else {
-  console.info( 'Running in production' )
-}
-
-console.debug( JSON.stringify( pjson.config ) )
-
-// Adds debug features like hotkeys for triggering dev tools and reload
-// (disabled in production, unless the menu item is displayed)
-require( 'electron-debug' )( {
-  // enabled: pjson.config.debug || isDev || false
-  enabled: true
-} )
-
-
-app.setName( pjson.productName || 'SkelEktron' )
+var Binary = require('mongodb-core').BSON.Binary,
+  ObjectID = require('mongodb-core').BSON.ObjectID;
 
 /**
- * @returns { Boolean } quit the apps
+ * Class for representing a single chunk in GridFS.
+ *
+ * @class
+ *
+ * @param file {GridStore} The {@link GridStore} object holding this chunk.
+ * @param mongoObject {object} The mongo object representation of this chunk.
+ *
+ * @throws Error when the type of data field for {@link mongoObject} is not
+ *     supported. Currently supported types for data field are instances of
+ *     {@link String}, {@link Array}, {@link Binary} and {@link Binary}
+ *     from the bson module
+ *
+ * @see Chunk#buildMongoObject
  */
-function initialize() {
-  var shouldQuit = makeSingleInstance()
-  if ( shouldQuit ) {
-    return app.quit()
+var Chunk = function(file, mongoObject, writeConcern) {
+  if(!(this instanceof Chunk)) return new Chunk(file, mongoObject);
+
+  this.file = file;
+  var mongoObjectFinal = mongoObject == null ? {} : mongoObject;
+  this.writeConcern = writeConcern || {w:1};
+  this.objectId = mongoObjectFinal._id == null ? new ObjectID() : mongoObjectFinal._id;
+  this.chunkNumber = mongoObjectFinal.n == null ? 0 : mongoObjectFinal.n;
+  this.data = new Binary();
+
+  if(typeof mongoObjectFinal.data == "string") {
+    var buffer = new Buffer(mongoObjectFinal.data.length);
+    buffer.write(mongoObjectFinal.data, 0, mongoObjectFinal.data.length, 'binary');
+    this.data = new Binary(buffer);
+  } else if(Array.isArray(mongoObjectFinal.data)) {
+    buffer = new Buffer(mongoObjectFinal.data.length);
+    var data = mongoObjectFinal.data.join('');
+    buffer.write(data, 0, data.length, 'binary');
+    this.data = new Binary(buffer);
+  } else if(mongoObjectFinal.data &amp;&amp; mongoObjectFinal.data._bsontype === 'Binary') {
+    this.data = mongoObjectFinal.data;
+  } else if(!Buffer.isBuffer(mongoObjectFinal.data) &amp;&amp; !(mongoObjectFinal.data == null)){
+    throw Error("Illegal chunk format");
   }
 
-  /**
-   * @name onClosed
-   * @description
-   * Dereference used windows
-   * for multiple windows store them in an array
-   * @returns { Void } void
-   */
-  function onClosed() {
-    mainWindow = null
-    infoWindow = null
-  }
-
-  /**
-   * @description
-   * Scaffolds the main window
-   * @returns { Boolean } exit code
-   */
-  function createMainWindow() {
-    // Load the previous window state with fallback to defaults
-    let mainWindowState = windowStateKeeper( {
-      defaultWidth: 1024,
-      defaultHeight: 768
-    } )
-
-    const win = new electron.BrowserWindow( {
-      'width': mainWindowState.width,
-      'height': mainWindowState.height,
-      'x': mainWindowState.x,
-      'y': mainWindowState.y,
-      'title': app.getName(),
-      'icon': path.join( __dirname, '/app/assets/img/icon.png' ),
-      // Hide your application until your page has loaded
-      'show': false,
-      'webPreferences': {
-        // Disabling node integration allows to use libraries such as jQuery/React, etc
-        'nodeIntegration': pjson.config.nodeIntegration || true,
-        'preload': path.resolve( path.join( __dirname, '/backend/preload.js' ) )
-      }
-    } )
-
-    // Let us register listeners on the window, so we can update the state
-    // automatically (the listeners will be removed when the window is closed)
-    // and restore the maximized or full screen state
-    mainWindowState.manage( win )
-
-    // Remove file:// if you need to load http URLs
-    win.loadURL( `file://${__dirname}/${pjson.config.url}`, {} )
-
-    win.on( 'closed', onClosed )
-
-    // Then, when everything is loaded, show the window and focus it so it pops up for the user
-    // Yon can also use: win.webContents.on('did-finish-load')
-    win.on( 'ready-to-show', () => {
-      win.show()
-      win.focus()
-    } )
-
-    win.on( 'unresponsive', function onUnresponsive() {
-      // In the real world you should display a box and do something
-      console.warn( 'The windows is not responding' )
-    } )
-
-    win.webContents.on( 'did-fail-load', ( error, errorCode, errorDescription ) => {
-      var errorMessage
-
-      if ( errorCode === -105 ) {
-        errorMessage = errorDescription || '[Connection Error] The host name could not be resolved, check your network connection'
-        console.log( errorMessage )
-      } else {
-        errorMessage = errorDescription || 'Unknown error'
-      }
-
-      error.sender.loadURL( `file://${__dirname}/error.html` )
-      win.webContents.on( 'did-finish-load', () => {
-        win.webContents.send( 'app-error', errorMessage )
-      } )
-    } )
-
-    win.webContents.on( 'crashed', () => {
-      // In the real world you should display a box and do something
-      console.error( 'The browser window has just crashed' )
-    } )
-
-    win.webContents.on( 'did-finish-load', () => {
-      win.webContents.send( 'hello' )
-    } )
-
-    return win
-  }
-
-  app.on( 'window-all-closed', () => {
-    if ( process.platform !== 'darwin' ) {
-      app.quit()
-    }
-  } )
-
-  app.on( 'activate', () => {
-    if ( !mainWindow ) {
-      mainWindow = createMainWindow()
-    }
-  } )
-
-  app.setAsDefaultProtocolClient( 'electron' );
-  app.on( 'ready', () => {
-    Menu.setApplicationMenu( createMenu() )
-    mainWindow = createMainWindow()
-
-
-    // Manage automatic updates
-    try {
-      require( './lib/auto-update/update' )( {
-        url: ( pjson.config.update ) ? pjson.config.update.url || false : false,
-        version: app.getVersion()
-      } )
-      ipc.on( 'update-downloaded', ( autoUpdater ) => {
-        // Elegant solution: display unobtrusive notification messages
-        mainWindow.webContents.send( 'update-downloaded' )
-        ipc.on( 'update-and-restart', () => {
-          autoUpdater.quitAndInstall()
-        } )
-
-        // Basic solution: display a message box to the user
-        // var updateNow = dialog.showMessageBox(mainWindow, {
-        //   type: 'question',
-        //   buttons: ['Yes', 'No'],
-        //   defaultId: 0,
-        //   cancelId: 1,
-        //   title: 'Update available',
-        //   message: 'There is an update available, do you want to restart and install it now?'
-        // })
-        //
-        // if (updateNow === 0) {
-        //   autoUpdater.quitAndInstall()
-        // }
-      } )
-    } catch ( e ) {
-      console.error( e.message )
-      dialog.showErrorBox( 'Update Error', e.message )
-    }
-  } )
-
-  app.on( 'will-quit', () => {} )
-
-  ipc.on( 'open-info-window', () => {
-    if ( infoWindow ) {
-      return
-    }
-    infoWindow = new electron.BrowserWindow( {
-      width: 600,
-      height: 600,
-      resizable: false
-    } )
-    infoWindow.loadURL( `file://${__dirname}/info.html` )
-
-    infoWindow.on( 'closed', () => {
-      infoWindow = null
-    } )
-  } )
-
-  // Listen for sync message from renderer process
-  ipc.on( 'electron-msg', ( event, arg ) => {
-    mainWindow.webContents.send( arg.msg, arg.data );
-  } );
-
-  ipc.on( 'renderer-msg', ( event, arg ) => {
-    mainWindow.webContents.send( 'electron-msg', arg );
-  } );
-}
+  // Update position
+  this.internalPosition = 0;
+};
 
 /**
- * @name makeSingleInstance
- * @description
- * Make this app a single instance app.
+ * Writes a data to this object and advance the read/write head.
  *
- * The main window will be restored and focused instead of a second window
- * opened when a person attempts to launch a second instance.
- *
- * Returns true if the current version of the app should quit instead of
- * launching.
- * @returns  { Object } singleton instance
+ * @param data {string} the data to write
+ * @param callback {function(*, GridStore)} This will be called after executing
+ *     this method. The first parameter will contain null and the second one
+ *     will contain a reference to this object.
  */
-function makeSingleInstance() {
-  return app.makeSingleInstance( () => {
-    if ( mainWindow ) {
-      if ( mainWindow.isMinimized() ) {
-        mainWindow.restore()
-      }
-      mainWindow.focus()
-    }
-  } )
-}
+Chunk.prototype.write = function(data, callback) {
+  this.data.write(data, this.internalPosition, data.length, 'binary');
+  this.internalPosition = this.data.length();
+  if(callback != null) return callback(null, this);
+  return this;
+};
 
 /**
- * @name createMenu
+ * Reads data and advances the read/write head.
  *
- * @returns { Object } Menu
+ * @param length {number} The length of data to read.
+ *
+ * @return {string} The data read if the given length will not exceed the end of
+ *     the chunk. Returns an empty String otherwise.
  */
-function createMenu() {
-  return Menu.buildFromTemplate( require( './lib/menu' ) )
-}
+Chunk.prototype.read = function(length) {
+  // Default to full read if no index defined
+  length = length == null || length == 0 ? this.length() : length;
 
-// Manage Squirrel startup event (Windows)
-require( './lib/auto-update/startup' )( initialize )
+  if(this.length() - this.internalPosition + 1 >= length) {
+    var data = this.data.read(this.internalPosition, length);
+    this.internalPosition = this.internalPosition + length;
+    return data;
+  } else {
+    return '';
+  }
+};
+
+Chunk.prototype.readSlice = function(length) {
+  if ((this.length() - this.internalPosition) >= length) {
+    var data = null;
+    if (this.data.buffer != null) { //Pure BSON
+      data = this.data.buffer.slice(this.internalPosition, this.internalPosition + length);
+    } else { //Native BSON
+      data = new Buffer(length);
+      length = this.data.readInto(data, this.internalPosition);
+    }
+    this.internalPosition = this.internalPosition + length;
+    return data;
+  } else {
+    return null;
+  }
+};
+
+/**
+ * Checks if the read/write head is at the end.
+ *
+ * @return {boolean} Whether the read/write head has reached the end of this
+ *     chunk.
+ */
+Chunk.prototype.eof = function() {
+  return this.internalPosition == this.length() ? true : false;
+};
+
+/**
+ * Reads one character from the data of this chunk and advances the read/write
+ * head.
+ *
+ * @return {string} a single character data read if the the read/write head is
+ *     not at the end of the chunk. Returns an empty String otherwise.
+ */
+Chunk.prototype.getc = function() {
+  return this.read(1);
+};
+
+/**
+ * Clears the contents of the data in this chunk and resets the read/write head
+ * to the initial position.
+ */
+Chunk.prototype.rewind = function() {
+  this.internalPosition = 0;
+  this.data = new Binary();
+};
+
+/**
+ * Saves this chunk to the database. Also overwrites existing entries having the
+ * same id as this chunk.
+ *
+ * @param callback {function(*, GridStore)} This will be called after executing
+ *     this method. The first parameter will contain null and the second one
+ *     will contain a reference to this object.
+ */
+Chunk.prototype.save = function(options, callback) {
+  var self = this;
+  if(typeof options == 'function') {
+    callback = options;
+    options = {};
+  }
+
+  self.file.chunkCollection(function(err, collection) {
+    if(err) return callback(err);
+
+    // Merge the options
+    var writeOptions = { upsert: true };
+    for(var name in options) writeOptions[name] = options[name];
+    for(name in self.writeConcern) writeOptions[name] = self.writeConcern[name];
+
+    if(self.data.length() > 0) {
+      self.buildMongoObject(function(mongoObject) {
+        var options = {forceServerObjectId:true};
+        for(var name in self.writeConcern) {
+          options[name] = self.writeConcern[name];
+        }
+
+        collection.replaceOne({'_id':self.objectId}, mongoObject, writeOptions, function(err) {
+          callback(err, self);
+        });
+      });
+    } else {
+      callback(null, self);
+    }
+    // });
+  });
+};
+
+/**
+ * Creates a mongoDB object representation of this chunk.
+ *
+ * @param callback {function(Object)} This will be called after executing this
+ *     method. The object will be passed to the first parameter and will have
+ *     the structure:
+ *
+ *        &lt;pre>&lt;code>
+ *        {
+ *          '_id' : , // {number} id for this chunk
+ *          'files_id' : , // {number} foreign key to the file collection
+ *          'n' : , // {number} chunk number
+ *          'data' : , // {bson#Binary} the chunk data itself
+ *        }
+ *        &lt;/code>&lt;/pre>
+ *
+ * @see &lt;a href="http://www.mongodb.org/display/DOCS/GridFS+Specification#GridFSSpecification-{{chunks}}">MongoDB GridFS Chunk Object Structure&lt;/a>
+ */
+Chunk.prototype.buildMongoObject = function(callback) {
+  var mongoObject = {
+    'files_id': this.file.fileId,
+    'n': this.chunkNumber,
+    'data': this.data};
+  // If we are saving using a specific ObjectId
+  if(this.objectId != null) mongoObject._id = this.objectId;
+
+  callback(mongoObject);
+};
+
+/**
+ * @return {number} the length of the data
+ */
+Chunk.prototype.length = function() {
+  return this.data.length();
+};
+
+/**
+ * The position of the read/write head
+ * @name position
+ * @lends Chunk#
+ * @field
+ */
+Object.defineProperty(Chunk.prototype, "position", { enumerable: true
+  , get: function () {
+      return this.internalPosition;
+    }
+  , set: function(value) {
+      this.internalPosition = value;
+    }
+});
+
+/**
+ * The default chunk size
+ * @constant
+ */
+Chunk.DEFAULT_CHUNK_SIZE = 1024 * 255;
+
+module.exports = Chunk;
 </code></pre>
         </article>
     </section>

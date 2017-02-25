@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: main.js</title>
+    <title>JSDoc: Source: backend/modules/mongodb/lib/read_preference.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: main.js</h1>
+    <h1 class="page-title">Source: backend/modules/mongodb/lib/read_preference.js</h1>
 
     
 
@@ -26,278 +26,137 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>/*eslint no-console: [2, { allow: ["warn", "error","info","log","debug"] }] */
-
-'use strict'
-
-const electron = require( 'electron' ),
-  app = electron.app,
-  Menu = require( 'electron' ).Menu,
-  dialog = require( 'electron' ).dialog,
-  ipc = require( 'electron' ).ipcMain,
-  path = require( 'path' ),
-  pjson = require( './package.json' ),
-  _ = require( 'lodash' ),
-  windowStateKeeper = require( 'electron-window-state' );
-
-var config = {}
-
-// Use system log facility, should work on Windows too
-require( './lib/log' )( pjson.productName || 'CMIDataCollector' )
-
-// Manage unhandled exceptions as early as possible
-process.on( 'uncaughtException', ( e ) => {
-  console.error( `Caught unhandled exception: ${e}` )
-  dialog.showErrorBox( 'Caught unhandled exception', e.message || 'Unknown error message' )
-  app.quit()
-} )
-
-// Load build target configuration file
-try {
-  config = require( './config.json' )
-  _.merge( pjson.config, config )
-} catch ( e ) {
-  console.warn( 'No config file loaded, using defaults' )
-}
-
-let isDev = ( require( 'electron-is-dev' ) || pjson.config.debug ),
-  // Prevent window being garbage collected
-  mainWindow,
-  // Other windows we may need
-  infoWindow = null
-
-global.appSettings = pjson.config
-
-if ( isDev ) {
-  console.info( 'Running in development' )
-} else {
-  console.info( 'Running in production' )
-}
-
-console.debug( JSON.stringify( pjson.config ) )
-
-// Adds debug features like hotkeys for triggering dev tools and reload
-// (disabled in production, unless the menu item is displayed)
-require( 'electron-debug' )( {
-  // enabled: pjson.config.debug || isDev || false
-  enabled: true
-} )
-
-
-app.setName( pjson.productName || 'SkelEktron' )
+            <pre class="prettyprint source linenums"><code>"use strict";
 
 /**
- * @returns { Boolean } quit the apps
+ * @fileOverview The **ReadPreference** class is a class that represents a MongoDB ReadPreference and is
+ * used to construct connections.
+ *
+ * @example
+ * var Db = require('mongodb').Db,
+ *   ReplSet = require('mongodb').ReplSet,
+ *   Server = require('mongodb').Server,
+ *   ReadPreference = require('mongodb').ReadPreference,
+ *   test = require('assert');
+ * // Connect using ReplSet
+ * var server = new Server('localhost', 27017);
+ * var db = new Db('test', new ReplSet([server]));
+ * db.open(function(err, db) {
+ *   test.equal(null, err);
+ *   // Perform a read
+ *   var cursor = db.collection('t').find({});
+ *   cursor.setReadPreference(ReadPreference.PRIMARY);
+ *   cursor.toArray(function(err, docs) {
+ *     test.equal(null, err);
+ *     db.close();
+ *   });
+ * });
  */
-function initialize() {
-  var shouldQuit = makeSingleInstance()
-  if ( shouldQuit ) {
-    return app.quit()
+
+/**
+ * Creates a new ReadPreference instance
+ *
+ * Read Preferences
+ *  - **ReadPreference.PRIMARY**, Read from primary only. All operations produce an error (throw an exception where applicable) if primary is unavailable. Cannot be combined with tags (This is the default.).
+ *  - **ReadPreference.PRIMARY_PREFERRED**, Read from primary if available, otherwise a secondary.
+ *  - **ReadPreference.SECONDARY**, Read from secondary if available, otherwise error.
+ *  - **ReadPreference.SECONDARY_PREFERRED**, Read from a secondary if available, otherwise read from the primary.
+ *  - **ReadPreference.NEAREST**, All modes read from among the nearest candidates, but unlike other modes, NEAREST will include both the primary and all secondaries in the random selection.
+ *
+ * @class
+ * @param {string} mode The ReadPreference mode as listed above.
+ * @param {array|object} tags An object representing read preference tags.
+ * @param {object} [options] Additional read preference options
+ * @param {number} [options.maxStalenessSeconds] Max Secondary Read Stalleness in Seconds
+ * @return {ReadPreference} a ReadPreference instance.
+ */
+var ReadPreference = function(mode, tags, options) {
+  if(!(this instanceof ReadPreference)) {
+    return new ReadPreference(mode, tags, options);
   }
 
-  /**
-   * @name onClosed
-   * @description
-   * Dereference used windows
-   * for multiple windows store them in an array
-   * @returns { Void } void
-   */
-  function onClosed() {
-    mainWindow = null
-    infoWindow = null
+  this._type = 'ReadPreference';
+  this.mode = mode;
+  this.tags = tags;
+  this.options =  options;
+
+  // If no tags were passed in
+  if(tags &amp;&amp; typeof tags == 'object' &amp;&amp; !Array.isArray(tags)) {
+    if(tags.maxStalenessSeconds) {
+      this.options = tags;
+      this.tags = null;
+    }
   }
 
-  /**
-   * @description
-   * Scaffolds the main window
-   * @returns { Boolean } exit code
-   */
-  function createMainWindow() {
-    // Load the previous window state with fallback to defaults
-    let mainWindowState = windowStateKeeper( {
-      defaultWidth: 1024,
-      defaultHeight: 768
-    } )
-
-    const win = new electron.BrowserWindow( {
-      'width': mainWindowState.width,
-      'height': mainWindowState.height,
-      'x': mainWindowState.x,
-      'y': mainWindowState.y,
-      'title': app.getName(),
-      'icon': path.join( __dirname, '/app/assets/img/icon.png' ),
-      // Hide your application until your page has loaded
-      'show': false,
-      'webPreferences': {
-        // Disabling node integration allows to use libraries such as jQuery/React, etc
-        'nodeIntegration': pjson.config.nodeIntegration || true,
-        'preload': path.resolve( path.join( __dirname, '/backend/preload.js' ) )
-      }
-    } )
-
-    // Let us register listeners on the window, so we can update the state
-    // automatically (the listeners will be removed when the window is closed)
-    // and restore the maximized or full screen state
-    mainWindowState.manage( win )
-
-    // Remove file:// if you need to load http URLs
-    win.loadURL( `file://${__dirname}/${pjson.config.url}`, {} )
-
-    win.on( 'closed', onClosed )
-
-    // Then, when everything is loaded, show the window and focus it so it pops up for the user
-    // Yon can also use: win.webContents.on('did-finish-load')
-    win.on( 'ready-to-show', () => {
-      win.show()
-      win.focus()
-    } )
-
-    win.on( 'unresponsive', function onUnresponsive() {
-      // In the real world you should display a box and do something
-      console.warn( 'The windows is not responding' )
-    } )
-
-    win.webContents.on( 'did-fail-load', ( error, errorCode, errorDescription ) => {
-      var errorMessage
-
-      if ( errorCode === -105 ) {
-        errorMessage = errorDescription || '[Connection Error] The host name could not be resolved, check your network connection'
-        console.log( errorMessage )
-      } else {
-        errorMessage = errorDescription || 'Unknown error'
-      }
-
-      error.sender.loadURL( `file://${__dirname}/error.html` )
-      win.webContents.on( 'did-finish-load', () => {
-        win.webContents.send( 'app-error', errorMessage )
-      } )
-    } )
-
-    win.webContents.on( 'crashed', () => {
-      // In the real world you should display a box and do something
-      console.error( 'The browser window has just crashed' )
-    } )
-
-    win.webContents.on( 'did-finish-load', () => {
-      win.webContents.send( 'hello' )
-    } )
-
-    return win
+  // Add the maxStalenessSeconds value to the read Preference
+  if(this.options &amp;&amp; this.options.maxStalenessSeconds) {
+    this.maxStalenessSeconds = this.options.maxStalenessSeconds;
   }
-
-  app.on( 'window-all-closed', () => {
-    if ( process.platform !== 'darwin' ) {
-      app.quit()
-    }
-  } )
-
-  app.on( 'activate', () => {
-    if ( !mainWindow ) {
-      mainWindow = createMainWindow()
-    }
-  } )
-
-  app.setAsDefaultProtocolClient( 'electron' );
-  app.on( 'ready', () => {
-    Menu.setApplicationMenu( createMenu() )
-    mainWindow = createMainWindow()
-
-
-    // Manage automatic updates
-    try {
-      require( './lib/auto-update/update' )( {
-        url: ( pjson.config.update ) ? pjson.config.update.url || false : false,
-        version: app.getVersion()
-      } )
-      ipc.on( 'update-downloaded', ( autoUpdater ) => {
-        // Elegant solution: display unobtrusive notification messages
-        mainWindow.webContents.send( 'update-downloaded' )
-        ipc.on( 'update-and-restart', () => {
-          autoUpdater.quitAndInstall()
-        } )
-
-        // Basic solution: display a message box to the user
-        // var updateNow = dialog.showMessageBox(mainWindow, {
-        //   type: 'question',
-        //   buttons: ['Yes', 'No'],
-        //   defaultId: 0,
-        //   cancelId: 1,
-        //   title: 'Update available',
-        //   message: 'There is an update available, do you want to restart and install it now?'
-        // })
-        //
-        // if (updateNow === 0) {
-        //   autoUpdater.quitAndInstall()
-        // }
-      } )
-    } catch ( e ) {
-      console.error( e.message )
-      dialog.showErrorBox( 'Update Error', e.message )
-    }
-  } )
-
-  app.on( 'will-quit', () => {} )
-
-  ipc.on( 'open-info-window', () => {
-    if ( infoWindow ) {
-      return
-    }
-    infoWindow = new electron.BrowserWindow( {
-      width: 600,
-      height: 600,
-      resizable: false
-    } )
-    infoWindow.loadURL( `file://${__dirname}/info.html` )
-
-    infoWindow.on( 'closed', () => {
-      infoWindow = null
-    } )
-  } )
-
-  // Listen for sync message from renderer process
-  ipc.on( 'electron-msg', ( event, arg ) => {
-    mainWindow.webContents.send( arg.msg, arg.data );
-  } );
-
-  ipc.on( 'renderer-msg', ( event, arg ) => {
-    mainWindow.webContents.send( 'electron-msg', arg );
-  } );
 }
 
 /**
- * @name makeSingleInstance
- * @description
- * Make this app a single instance app.
+ * Validate if a mode is legal
  *
- * The main window will be restored and focused instead of a second window
- * opened when a person attempts to launch a second instance.
- *
- * Returns true if the current version of the app should quit instead of
- * launching.
- * @returns  { Object } singleton instance
+ * @method
+ * @param {string} mode The string representing the read preference mode.
+ * @return {boolean}
  */
-function makeSingleInstance() {
-  return app.makeSingleInstance( () => {
-    if ( mainWindow ) {
-      if ( mainWindow.isMinimized() ) {
-        mainWindow.restore()
-      }
-      mainWindow.focus()
-    }
-  } )
+ReadPreference.isValid = function(_mode) {
+  return (_mode == ReadPreference.PRIMARY || _mode == ReadPreference.PRIMARY_PREFERRED
+    || _mode == ReadPreference.SECONDARY || _mode == ReadPreference.SECONDARY_PREFERRED
+    || _mode == ReadPreference.NEAREST
+    || _mode == true || _mode == false || _mode == null);
 }
 
 /**
- * @name createMenu
+ * Validate if a mode is legal
  *
- * @returns { Object } Menu
+ * @method
+ * @param {string} mode The string representing the read preference mode.
+ * @return {boolean}
  */
-function createMenu() {
-  return Menu.buildFromTemplate( require( './lib/menu' ) )
+ReadPreference.prototype.isValid = function(mode) {
+  var _mode = typeof mode == 'string' ? mode : this.mode;
+  return ReadPreference.isValid(_mode);
 }
 
-// Manage Squirrel startup event (Windows)
-require( './lib/auto-update/startup' )( initialize )
+/**
+ * @ignore
+ */
+ReadPreference.prototype.toObject = function() {
+  var object = {mode:this.mode};
+
+  if(this.tags != null) {
+    object['tags'] = this.tags;
+  }
+
+  if(this.maxStalenessSeconds) {
+    object['maxStalenessSeconds'] = this.maxStalenessSeconds;
+  }
+
+  return object;
+}
+
+/**
+ * @ignore
+ */
+ReadPreference.prototype.toJSON = function() {
+  return this.toObject();
+}
+
+/**
+ * @ignore
+ */
+ReadPreference.PRIMARY = 'primary';
+ReadPreference.PRIMARY_PREFERRED = 'primaryPreferred';
+ReadPreference.SECONDARY = 'secondary';
+ReadPreference.SECONDARY_PREFERRED = 'secondaryPreferred';
+ReadPreference.NEAREST = 'nearest'
+
+/**
+ * @ignore
+ */
+module.exports = ReadPreference;
 </code></pre>
         </article>
     </section>
