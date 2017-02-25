@@ -34,8 +34,7 @@ init();
  */
 function init() {
   ipcRenderer.on( 'init-params', ( event, arg ) => {
-    console.log( 'init event', event );
-    console.log( 'init args', arg );
+    sendMessageToMain( 'init-event', arg );
   } );
 
   ipcRenderer.on( 'connect-database', ( event, arg ) => {

@@ -104,6 +104,11 @@
       if ( msg.msg === 'get-datasources-error' ) {
                 // MENSAJE PIDIENDO QUE SE CONTACTE CON EL CENTRO DE ADMINISTRACION
       }
+
+      if( msg.msg === 'init-event' ) {
+        alert( msg.data );
+      }
+
       $rootScope.safeApply();
     } );
 
