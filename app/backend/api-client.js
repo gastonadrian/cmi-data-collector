@@ -4,9 +4,9 @@
  * @returns {Object} Modulo de llamadas a microservicios
  */
 module.exports = function apiClient() {
-  var request = require( 'request' ).defaults( getServerInfo() ),
+  var config = require( './../config.json' ),
+    request = require( 'request' ).defaults( getServerInfo() ),
     _ = require( 'lodash' );
-
 
   /**
    * @name getServerInfo
@@ -16,7 +16,7 @@ module.exports = function apiClient() {
   function getServerInfo() {
         // TODO, get data from env file
     return {
-      baseUrl: 'http://localhost:8080/api',
+      baseUrl: `http://${config.APIHOST}:${config.APIPORT}/${config.APIPREFIX}`,
       json: true
     };
   }
