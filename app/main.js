@@ -222,28 +222,6 @@ function initialize() {
     app.on( 'open-url', handleUrl );
   }
 
-  /**
-   * @name handleUrl
-   * @description Envia al proceso principal la ruta elegida en deeplinking para abrir la aplicacion
-   * @param {any} event - Evento
-   * @param {any} params - Url a enviar al proceso renderer
-   * @returns {void}
-   */
-  function handleUrl( event, params ) {
-
-    if ( !mainWindow || !mainWindow.webContents ) {
-      console.log('no se envia nada');
-      urlData = params;
-      return;
-    }
-
-    if ( !params ) {
-      params = urlData;
-    }
-
-    mainWindow.webContents.send( 'init-params', params );
-  }
-
   ipc.on( 'open-info-window', () => {
     if ( infoWindow ) {
       return
@@ -270,6 +248,29 @@ function initialize() {
   } );
 }
 
+
+  /**
+   * @name handleUrl
+   * @description Envia al proceso principal la ruta elegida en deeplinking para abrir la aplicacion
+   * @param {any} event - Evento
+   * @param {any} params - Url a enviar al proceso renderer
+   * @returns {void}
+   */
+  function handleUrl( event, params ) {
+
+    if ( !mainWindow || !mainWindow.webContents ) {
+      console.log('no se envia nada');
+      urlData = params;
+      return;
+    }
+
+    if ( !params ) {
+      params = urlData;
+    }
+
+    mainWindow.webContents.send( 'init-params', params );
+  }
+  
 /**
  * @name makeSingleInstance
  * @description
