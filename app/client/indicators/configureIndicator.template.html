@@ -1,0 +1,127 @@
+<style>
+    .configureIndicator h4{
+        margin:0;
+    }   
+    .configureIndicator md-input-container{
+        margin: 10px 0 0 0;
+    }
+    .configureIndicator md-label{
+        margin:10px 0;
+    }
+    .configureIndicator .indicator-information{
+        margin-bottom: 18px;
+    }
+    .configureIndicator .help-block{
+        display: block;
+        font-size:12px;
+    }
+    .configureIndicator .md-accent{
+        color: rgb(16,108,200);
+    }
+</style>
+<div class="configureIndicator">
+    <div flex layout="column" class="indicator-information">
+        <h3>Indicador: {{configureIndicator.indicator.title}}</h3>
+        <label for="" class="md-warn" data-ng-show="configureIndicator.error">{{configureIndicator.error}}</label> 
+        <md-label>
+            <strong>Unidad:</strong> {{configureIndicator.indicator.data.title}}
+        </md-label>
+        <md-label>
+            <strong>Operacion:</strong> {{configureIndicator.indicator.datasource.columnOperation | columnOperation}}
+        </md-label>
+        <md-input-container data-ng-show="configureIndicator.indicator.datasource.columnOperation === 5">
+            <label>Consulta personalizada</label>
+            <input type="text" data-ng-model="configureIndicator.indicator.datasource.rowOperation" required>
+            <span class="help-block md-accent">El campo con el valor resultado debe ser nombrado como "as result"</span>
+            <span class="help-block md-accent">En where debe dejar como ultima condicion and "${filtrofecha}"</span>
+        </md-input-container>
+        <md-label data-ng-show="configureIndicator.indicator.datasource.dateColumn">
+            <strong>Columna Utilizada para fecha:</strong> {{configureIndicator.indicator.datasource.dateColumn}}
+        </md-label>
+        <md-label data-ng-show="configureIndicator.indicator.datasource.valueColumn">
+            <strong>Columna Utilizada como valor para calcular el consolidado:</strong> {{configureIndicator.indicator.datasource.valueColumn}}
+        </md-label>
+    </div>
+    
+    <div data-ng-show="configureIndicator.step === 0">
+        <h4>Configuracion de Importacion:</h4> 
+        <p>Para empezar, elija una fuente de datos (con solo hacer click) y tabla a la izquierda:</p>
+    </div>
+    <div data-ng-show="configureIndicator.step === 1">
+        <h4>Vista previa de datos:</h4>
+        <p>Base: {{configureIndicator.datasource.title}}</p>
+        <p> Tabla: {{configureIndicator.table}}</p>
+        <md-toolbar class="md-table-toolbar md-default"  aria-hidden="false">
+        <div class="md-toolbar-tools">
+            <ng-md-icon icon="search"></ng-md-icon>
+            <form flex=""  class="flex">
+            <input type="text" data-ng-model="configureIndicator.query.filter" placeholder="Buscar">
+            </form>
+        </div>
+        </md-toolbar>
+        <md-table-container>
+        <table md-table>
+            <thead md-head md-order="configureIndicator.query.order" >
+            <tr md-row>
+                <th data-ng-repeat="column in configureIndicator.columns" md-column md-order-by="{{column.title}}"><span>{{column.title}}</span></th>
+            </tr>
+            </thead>
+            <tbody md-body>
+            <tr md-row md-select="row" ng-repeat="row in configureIndicator.data | filter: configureIndicator.query.filter | orderBy: configureIndicator.query.order | limitTo: configureIndicator.query.limit: (configureIndicator.query.page -1) * configureIndicator.query.limit">
+                <td md-cell data-ng-repeat="column in configureIndicator.columns">{{row[column.title]}}</td>
+            </tr>
+            </tbody>
+        </table>
+        </md-table-container>
+        <md-table-pagination md-limit="configureIndicator.query.limit" md-limit-options="[5, 10, 20]" md-page="configureIndicator.query.page" md-total="{{ (configureIndicator.data | filter: configureIndicator.query.filter).length }}"  md-page-select md-label="{page: 'Página:', rowsPerPage: 'Filas por página:', of: 'de'}"></md-table-pagination>
+    </div>
+    <div data-ng-show="configureIndicator.step === 2">
+        <h4>Elija la columna que utilizaremos para discriminar los meses</h4>
+        <md-table-container>
+        <table md-table md-row-select="true" ng-model="configureIndicator.selectedDateColumn" >
+            <thead md-head>
+            <tr md-row>
+                <th md-column><span>Nombre</span></th>
+                <th md-column><span>Tipo</span></th>
+            </tr>
+            </thead>
+            <tbody md-body>
+            <tr md-row md-on-select="configureIndicator.onDateSelected" data-ng-repeat="column in configureIndicator.columns" md-select="column" md-select-id="title" md-auto-select>
+                <td md-cell>{{column.title}}</td>
+                <td md-cell>{{column.type}}</td>                
+            </tr>
+            </tbody>
+        </table>
+        </md-table-container>        
+    </div>
+    <div data-ng-show="configureIndicator.step === 3">
+        <h4>Elija la columna que utilizaremos para calcular los valores del indicador</h4>
+        <md-table-container>
+        <table md-table md-row-select="true" ng-model="configureIndicator.selectedValueColumn" >
+            <thead md-head>
+            <tr md-row>
+                <th md-column><span>Nombre</span></th>
+                <th md-column><span>Tipo</span></th>
+            </tr>
+            </thead>
+            <tbody md-body>
+            <tr md-row md-on-select="configureIndicator.onValueSelected" data-ng-repeat="column in configureIndicator.columns" md-select="column" md-select-id="title" md-auto-select>
+                <td md-cell>{{column.title}}</td>
+                <td md-cell>{{column.type}}</td>                
+            </tr>
+            </tbody>
+        </table>
+        </md-table-container>        
+    </div>
+    <div data-ng-show="configureIndicator.step === 4">
+        <h3>Vista Previa</h3>
+        <p><strong>Periodo calculado:</strong> {{configureIndicator.importPreview.period}}</p>
+        <p><strong>Consolidado:</strong> {{configureIndicator.importPreview.value}}</p>
+    </div>
+    <label for="" class="md-warn" data-ng-show="configureIndicator.error">{{configureIndicator.error}}</label> 
+    <div layout="row" layout-align="space-between center" data-ng-show="configureIndicator.step > 0">
+        <md-button class="md-warn" data-ng-click="configureIndicator.cancel()">Cancelar</md-button>
+        <md-button class="md-primary" data-ng-show="configureIndicator.step < 4" data-ng-click="configureIndicator.goToNext()">Siguiente</md-button>
+        <md-button class="md-primary" data-ng-show="configureIndicator.step === 4" data-ng-click="configureIndicator.save()">Guardar Configuraci&oacute;n</md-button>
+    </div>
+</div>

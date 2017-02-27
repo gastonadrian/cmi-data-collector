@@ -3,6 +3,8 @@ var app = require( 'electron' ).remote,
   path = require( 'path' ),
   _ = require( 'lodash' ),
   ipcRenderer = require( 'electron' ).ipcRenderer,
+  settings = require( 'electron-settings' ),
+
   excel = require( './datasource-adapters/xls' ),
   csv = require( './datasource-adapters/csv' ),
   json = require( './datasource-adapters/json' ),
@@ -23,7 +25,9 @@ var app = require( 'electron' ).remote,
   fileOptions = {
     getFirstTableData: true,
     filePath: ''
-  };
+  },
+  hasFrontendStarted = false,
+  queuedMessagesToFrontend = [];
 
 init();
 
@@ -33,10 +37,93 @@ init();
  * @returns {void}
  */
 function init() {
-  ipcRenderer.on( 'init-params', ( event, arg ) => {
-    console.log(arg);
-    sendMessageToMain( 'init-event', arg );
+
+  settings.defaults( {
+    credentials: {}
   } );
+
+  // wait for init-params
+  ipcRenderer.on( 'init-params', ( event, arg ) => {
+    var url = arg.replace( 'data-collector://', '' );
+    sendMessageToMain( 'init-event', url );
+  } );
+
+  ipcRenderer.on( 'login', ( event, arg ) => {
+    authenticate( event, arg, setListeners );
+  } );
+
+  // frontend integration, login as soon the app starts
+  ipcRenderer.on( 'frontend-started', () => {
+    hasFrontendStarted = true;
+
+    if ( settings.hasSync( 'credentials.email' ) && settings.hasSync( 'credentials.password' ) ) {
+      // authenticate
+      authenticate( null, { email: settings.getSync( 'credentials.email' ), password: settings.getSync( 'credentials.password' ) }, setListeners );
+    } else {
+      // open login form
+      ipcRenderer.send( 'renderer-msg', {
+        msg: 'login-user',
+        data: {}
+      } );
+    }
+  } );
+}
+
+/**
+ * @name authenticate
+ * @description Autentica al usuario contra el servidor, y guarda las credenciales para futuros usos
+ * @param {any} event - Evento
+ * @param {any} args - Argumentos, parametros de conexion
+ * @param {any} callback - Callback al que se desea llamar en caso de exito
+ * @returns {void}
+ */
+function authenticate( event, args, callback ) {
+  apiClient.login( args.email, args.password )
+    .then( function onOk( response ) {
+
+      //
+      if ( response === 'Unauthorized' ) {
+        ipcRenderer.send( 'renderer-msg', {
+          msg: 'login-error',
+          data: response
+        } );
+
+        ipcRenderer.send( 'renderer-msg', {
+          msg: 'login-user',
+          data: {}
+        } );
+        return;
+      }
+
+      if ( callback ) {
+        callback();
+      }
+
+      ipcRenderer.send( 'renderer-msg', {
+        msg: 'login-ok',
+        data: {}
+      } );
+
+
+      // save settings
+      if ( !settings.hasSync( 'credentials.email' ) ) {
+        settings.set( 'credentials', { email: args.email, password: args.password }, { atomicSaving: false } );
+      }
+    } );
+}
+
+
+/**
+ * @name setListeners
+ * @description Inicializa los listeners
+ * @returns {void}
+ */
+function setListeners() {
+  var test = 'indicators/configure/58b1aab3d7693713051a8683';
+  sendMessageToMain( 'init-event', test );
+
+
+  // datasources
 
   ipcRenderer.on( 'connect-database', ( event, arg ) => {
     processDataSource( arg.engine, arg )
@@ -68,15 +155,51 @@ function init() {
 
   ipcRenderer.on( 'get-datasources', getDatasources );
 
+  ipcRenderer.on( 'get-table-data', ( event, arg ) => {
+    getTableData( arg.datasource, arg.tableName );
+  } );
+
+  // import data
+
+  ipcRenderer.on( 'import-preview', ( event, arg ) => {
+    importData( arg.indicator, arg.datasource, null, null, false, 'import-preview' );
+  } );
+
   ipcRenderer.on( 'import-data', ( event, arg ) => {
-    importData( arg.indicator, arg.datasource, arg.month, arg.year )
+    importData( arg.indicator, arg.datasource, arg.month, arg.year, true, 'import-data' );
+  } );
+
+  // indicators
+
+  ipcRenderer.on( 'get-indicator', ( event, arg ) => {
+    apiClient.getIndicator( arg.id )
       .then( function onOk( response ) {
-        sendMessageToMain( 'import-data-ok', response );
+        sendMessageToMain( 'get-indicator-ok', response );
       } )
       .catch( function onError( error ) {
-        sendMessageToMain( 'import-data-error', error );
+        sendMessageToMain( 'get-indicator-error', error );
       } );
   } );
+
+  ipcRenderer.on( 'save-indicator', ( event, arg ) => {
+    apiClient.saveIndicatorDataSource( arg )
+      .then( function onOk( response ) {
+        sendMessageToMain( 'save-indicator-ok', response );
+      } )
+      .catch( function onError( error ) {
+        sendMessageToMain( 'save-indicator-error', error );
+      } );
+  } );
+
+
+  // frontend integration
+
+  if ( hasFrontendStarted ) {
+    resumeMessages();
+  } else {
+    ipcRenderer.on( 'frontend-started', resumeMessages );
+  }
+
 }
 
 /**
@@ -86,11 +209,14 @@ function init() {
  * @param {Datasource} datasource - La fuente de datos de donde consultar datos
  * @param {number} month - Mes requerido
  * @param {number} year - Anio requerido
+ * @param {Boolean} save - Si se desea guardar la importacion realizada.
+ * @param {String} msgToken - Token de mensaje para notificar al que inicio la llamada
  * @returns {Promise} - Promesa que contiene el resultado de los datos guardados en el microservicio
  */
-function importData( indicator, datasource, month, year ) {
+function importData( indicator, datasource, month, year, save, msgToken ) {
   var provider,
-    connectionParams;
+    connectionParams,
+    returnPromise;
 
   return new Promise( function onImport( resolve, reject ) {
     if ( !_.includes( datasource.tables, indicator.datasource.table ) ) {
@@ -106,12 +232,64 @@ function importData( indicator, datasource, month, year ) {
       provider = getDataSourceProvider( datasource.database.engine );
       connectionParams = datasource.database;
     } else {
+      provider = getDataSourceProvider( datasource.file.extension );
       connectionParams = datasource.file;
     }
 
-    return provider.getMonthlyData( connectionParams, indicator, month, year )
-      .then( apiClient.saveIndicatorData );
+    if ( year === null && month === null ) {
+      returnPromise = provider.getLastMonthData( connectionParams, indicator )
+    } else {
+      returnPromise = provider.getMonthlyData( connectionParams, indicator, month, year );
+    }
+
+    if ( save ) {
+      return returnPromise.then( apiClient.saveIndicatorData )
+        .then( function onOk( response ) {
+          sendMessageToMain( msgToken + '-ok', response );
+        } )
+        .catch( function onError( error ) {
+          sendMessageToMain( msgToken + '-error', error );
+        } );
+
+    } else {
+      return returnPromise
+        .then( function onOk( response ) {
+          sendMessageToMain( msgToken + '-ok', response );
+        } )
+        .catch( function onError( error ) {
+          sendMessageToMain( msgToken + '-error', error );
+        } );
+    }
+
   } );
+}
+
+
+/**
+ * @name getTableData
+ * @description Obtiene una tabla con sus datos
+ * @param {Object} datasource - Fuente de datos
+ * @param {String} tableName - Nombre de tabla
+ * @returns {Promise} Una promesa con los resultados de la conexion a la fuente de datos
+ */
+function getTableData( datasource, tableName ) {
+  var provider,
+    params;
+
+  if ( datasource.type === 1 ) {
+    provider = getDataSourceProvider( datasource.database.engine );
+    params = datasource.database;
+  } else {
+    provider = getDataSourceProvider( datasource.file.extension );
+    params = datasource.file;
+  }
+  provider.getTableData( params, tableName )
+    .then( function onGetTable( data ) {
+      sendMessageToMain( 'get-table-data-ok', data );
+    } )
+    .catch( function onError( error ) {
+      sendMessageToMain( 'get-table-data-error', error );
+    } );
 }
 
 /**
@@ -122,10 +300,31 @@ function importData( indicator, datasource, month, year ) {
  * @returns {void}
  */
 function sendMessageToMain( msg, data ) {
+
+  if ( !hasFrontendStarted ) {
+    queuedMessagesToFrontend.push( { msg: msg, data: data } )
+    return;
+  }
+
   ipcRenderer.send( 'renderer-msg', {
     msg: msg,
     data: data
   } );
+}
+
+/**
+ * @name resumeMessages
+ * @description Comienza a enviar todos los mensajes que no pudieron enviarse porque el front no estaba iniciado
+ * @returns {void}
+ */
+function resumeMessages() {
+  var i = 0;
+  hasFrontendStarted = true;
+  sendMessageToMain( 'frontend-started-ok' );
+
+  for ( i = 0; i < queuedMessagesToFrontend.length; i++ ) {
+    sendMessageToMain( queuedMessagesToFrontend[ i ].msg, queuedMessagesToFrontend[ i ].data );
+  }
 }
 
 /**
@@ -156,7 +355,6 @@ function openDatasourceFile( fileNames ) {
     return processDataSource( extension, fileOptions );
   }
 }
-
 
 /**
  * @name processDataSource

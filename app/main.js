@@ -179,8 +179,7 @@ function initialize() {
     mainWindow = createMainWindow()
 
     // enviar todos los datos que no fueron posibles anteriormente xq no se habia creado mainWindow;
-    console.log('enviar los datos', urlData);
-    handleUrl();
+    handleUrl( {}, urlData );
 
     // Manage automatic updates
     try {
@@ -218,9 +217,7 @@ function initialize() {
 
   app.on( 'will-quit', () => {} )
 
-  if ( process.platform === 'darwin' ) {
-    app.on( 'open-url', handleUrl );
-  }
+  app.on( 'open-url', handleUrl );
 
   ipc.on( 'open-info-window', () => {
     if ( infoWindow ) {
@@ -256,21 +253,16 @@ function initialize() {
    * @param {any} params - Url a enviar al proceso renderer
    * @returns {void}
    */
-  function handleUrl( event, params ) {
+function handleUrl( event, params ) {
 
-    if ( !mainWindow || !mainWindow.webContents ) {
-      console.log('no se envia nada');
-      urlData = params;
-      return;
-    }
-
-    if ( !params ) {
-      params = urlData;
-    }
-
-    mainWindow.webContents.send( 'init-params', params );
+  if ( !mainWindow || !mainWindow.webContents ) {
+    urlData = params;
+    return;
   }
-  
+
+  mainWindow.webContents.send( 'init-params', params );
+}
+
 /**
  * @name makeSingleInstance
  * @description
@@ -285,8 +277,7 @@ function initialize() {
  */
 function makeSingleInstance() {
   return app.makeSingleInstance( ( commandLine, workingDirectory ) => {
-    handleUrl( {}, commandLine );
-    handleUrl( {}, workingDirectory );
+    handleUrl( {}, workingDirectory[ 1 ] );
     if ( mainWindow ) {
       if ( mainWindow.isMinimized() ) {
         mainWindow.restore()

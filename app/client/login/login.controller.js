@@ -1,48 +1,26 @@
-( function addDatabaseControllerControllerContainer() {
+( function loginControllerControllerContainer() {
 
   'use strict';
 
   angular.module( 'data-collector' )
-    .controller( 'addDatabase', addDatabaseController );
+    .controller( 'loginController', loginController );
 
-  addDatabaseController.$inject = [ '$mdDialog', '$scope', 'ipc' ];
+  loginController.$inject = [ '$mdDialog', '$scope', 'ipc' ];
   /**
-   * @name addDatabaseController
-   * @description Encapsula toda la funcionalidad necesaria para solicitar los datos de conexion a una base de datos
+   * @name loginController
+   * @description Encapsula toda la funcionalidad necesaria para iniciar sesion
    * @param {any} $mdDialog - Servicio de dialogo de angular material
    * @param {any} $scope - scope
    * @param {any} ipc - servicio de intercomunicacion con el renderer
    * @returns {Object} - Funcionalidad publica del controller`
    */
-  function addDatabaseController( $mdDialog, $scope, ipc ) {
+  function loginController( $mdDialog, $scope, ipc ) {
     var self = this;
     angular.extend( self, {
-      supportedEngines: [
-        {
-          title: 'MongoDB',
-          value: 'mongo'
-        },
-        {
-          title: 'MySQL',
-          value: 'mysql'
-        },
-        {
-          title: 'Microsoft SQL Server',
-          value: 'mssql'
-        }
-      ],
-      host: 'localhost',
       ok: ok,
       cancel: cancel,
       form: {
       }
-    } );
-
-    $scope.$watch( 'addDatabase.engine', function onEngineChange( newValue, oldValue ) {
-      if ( !oldValue && !newValue ) {
-        return;
-      }
-            // TODO, cargar presets
     } );
 
     /**
@@ -60,22 +38,22 @@
      * @returns {void}
      */
     function ok() {
-      if ( !$scope.addDatabaseForm.$valid ) {
+      if ( !$scope.loginForm.$valid ) {
         return;
       }
       self.processingConnection = true;
       ipc.send( {
-        msg: 'connect-database',
+        msg: 'login',
         data: self.form
       } );
     }
 
-    $scope.$on( 'connect-database-ok', () => {
+    $scope.$on( 'login-ok', () => {
       self.processingConnection = false;
       $mdDialog.hide();
     } );
 
-    $scope.$on( 'connect-database-error', ( event, msg ) => {
+    $scope.$on( 'login-error', ( event, msg ) => {
       self.processingConnection = false;
       if ( msg.data && msg.data.message ) {
         self.error = msg.message;

@@ -17,7 +17,8 @@ module.exports = function apiClient() {
         // TODO, get data from env file
     return {
       baseUrl: `http://${config.APIHOST}:${config.APIPORT}/${config.APIPREFIX}`,
-      json: true
+      json: true,
+      jar: true
     };
   }
 
@@ -58,17 +59,6 @@ module.exports = function apiClient() {
     return POST( '/datasources', datasource );
   }
 
-
-  /**
-   * @name saveIndicatorData
-   * @description Invoca al microservicio que guarda los datos de importacion de indicador
-   * @param {any} indicatorData - Consolidado mensual de datos de indicador
-   * @returns {Promise} - Promesa de llamada http
-   */
-  function saveIndicatorData( indicatorData ) {
-    return POST( 'indicatorsdata', indicatorData );
-  }
-
   /**
    * @name getDatasources
    * @description Invoca al microservicio para obtener el listado de fuentes de datos
@@ -83,6 +73,60 @@ module.exports = function apiClient() {
               };
             } );
   }
+
+  /**
+   * @name saveIndicatorData
+   * @description Invoca al microservicio que guarda los datos de importacion de indicador
+   * @param {any} indicatorData - Consolidado mensual de datos de indicador
+   * @returns {Promise} - Promesa de llamada http
+   */
+  function saveIndicatorData( indicatorData ) {
+    return POST( 'indicatorsdata', indicatorData );
+  }
+
+  /**
+   * @name getIndicator
+   * @description Obtiene los datos de un indicador desde el api
+   * @param {string} indicatorId - Id del indicador
+   * @returns {Promise} - Promesa que contiene el resultado de los datos guardados en el microservicio
+   */
+  function getIndicator( indicatorId ) {
+    return GET( 'indicators/' + indicatorId );
+  }
+
+  /**
+   * @name saveIndicator
+   * @description Guarda los cambios realizados sobre un indicador
+   * @param {any} indicator - Indicador a modificar
+   * @returns {Promise} - Promesa que contiene el resultado de los datos guardados en el microservicio
+   */
+  function saveIndicatorDataSource( indicator ) {
+    return POST( 'indicatorsdatasource', indicator );
+  }
+
+  /**
+   * @name login
+   * @description autentica el usuario ante el api
+   * @param {any} email - Email
+   * @param {any} password - Password
+   * @returns {Promise} - Promesa que contiene el resultado de los datos guardados en el microservicio
+   */
+  function login( email, password ) {
+    return new Promise( function onResponse( resolve, reject ) {
+      request.post( {
+        url: 'login',
+        form: { email: email, password: password }
+      }, function onPostResponse( err, xhr, response ) {
+        if ( err ) {
+          return reject( err );
+        }
+        return resolve( response );
+      } );
+    } );
+  }
+
+
+  // UTILS
 
   /**
    * @name POST
@@ -130,7 +174,10 @@ module.exports = function apiClient() {
 
   return {
     saveDataSource: saveDataSource,
+    getDatasources: getDatasources,
     saveIndicatorData: saveIndicatorData,
-    getDatasources: getDatasources
+    getIndicator: getIndicator,
+    saveIndicatorDataSource: saveIndicatorDataSource,
+    login: login
   };
 };

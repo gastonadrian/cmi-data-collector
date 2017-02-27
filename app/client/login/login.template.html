@@ -1,0 +1,37 @@
+<md-dialog aria-label="Iniciar sesion">
+  <form name="loginForm" data-ng-submit="login.ok()" novalidate>
+    <md-toolbar>
+      <div class="md-toolbar-tools">
+        <h2>Iniciar sesion</h2>
+        <span flex></span>
+      </div>
+    </md-toolbar>
+
+    <md-dialog-content>
+      <div class="md-dialog-content" flex layout="column">
+          <md-input-container data-ng-show="login.error" class="md-input-invalid">
+            <label style="white-space: normal; margin-bottom: 10px;">{{login.error}}</label>
+          </md-input-container>
+          <md-input-container>
+            <label>Email</label>
+            <input type="email" data-ng-model="login.form.email" required name="email">
+            <div ng-messages="loginForm.email.$error">
+              <div ng-message="required">El campo es requerido!</div>
+            </div>
+          </md-input-container>
+          <md-input-container>
+            <label>Contrase&ntilde;a</label>
+            <input type="password" data-ng-model="login.form.password" required name="password">
+          </md-input-container>
+          <md-progress-linear md-mode="indeterminate" data-ng-show="login.processingConnection"></md-progress-linear>
+      </div>
+    </md-dialog-content>
+    
+    <md-dialog-actions layout="row">
+    <md-button type="submit" class="md-primary"
+      data-ng-disabled="login.processingConnection"
+      data-ng-class="{'md-raised md-hue-1': (loginForm.$dirty && loginForm.$valid) }"
+      aria-label="Iniciar sesion">Iniciar sesion</md-button>
+    </md-dialog-actions>
+  </form>
+</md-dialog>

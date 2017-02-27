@@ -1,5 +1,6 @@
 var mysql = require( 'mysql' ),
   utils = require( './utils' ),
+  moment = require( 'moment' ),
   _ = require( 'lodash' );
 
 /**
@@ -93,7 +94,6 @@ function mySqlAdapter() {
   function getTableData( params, tableName, limit, query, projection, withColumns ) {
     var settings = {
         table: tableName,
-        limit: limit || 0,
         projection: projection || {},
         query: query
       },
@@ -102,17 +102,24 @@ function mySqlAdapter() {
         columns: []
       };
 
+    if ( withColumns !== false ) {
+      withColumns = true;
+    }
+
     return new Promise( function getTablePromise( resolve, reject ) {
       try {
         _.merge( options, params );
         setConnection();
 
         if ( !query || !query.length ) {
-          settings.query = `select * from ${options.database}.${tableName} limit ${settings.limit}`;
+          settings.query = 'select * from ' + options.database + '.`' + tableName + '`';
+          if ( limit ) {
+            settings.query += `limit ${settings.limit}`;
+          }
         }
 
         if ( withColumns ) {
-          connection.query( `describe ${options.database}.${tableName}`, function onColumnDefinition( error, tableDefinition ) {
+          connection.query( 'describe ' + options.database + '.`' + tableName + '`', function onColumnDefinition( error, tableDefinition ) {
             if ( error ) {
               return reject( { message: error.message } );
             }
@@ -126,7 +133,7 @@ function mySqlAdapter() {
           } );
         }
 
-              // get data
+            // get data
         connection.query( settings.query, function onColumnDefinition( error, rows ) {
           if ( error ) {
             return reject( { message: error.message } );
@@ -154,7 +161,7 @@ function mySqlAdapter() {
    * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
    * @param {number} month Mes sobre el cual se quieren calcular los datos
    * @param {number} year Anio sobre el cual se quieren calcular los datos
-   * @returns {Object} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
    */
   function getMonthlyData( params, indicator, month, year ) {
 
@@ -163,6 +170,36 @@ function mySqlAdapter() {
     return getTableData( params, indicator.table, 0, tableQuery, null, false )
       .then( utils.queryImportCallback.bind( this, indicator, new Date( year, month - 1, 1 ) ) );
   }
+
+  /**
+   * @name getLastMonthData
+   * @description Obtiene el consolidado de datos para el ultimo mes sobre los datos de un indicador
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
+   */
+  function getLastMonthData( params, indicator ) {
+
+    var query = 'select ' + indicator.datasource.dateColumn + ' as date from ' + params.database + '.`' + indicator.datasource.table + '` order by ' + indicator.datasource.dateColumn + ' desc limit 1';
+    _.merge( options, params );
+    setConnection();
+
+    return new Promise( function onDate( resolve, reject ) {
+
+      connection.query( query, function onColumnDefinition( error, rows ) {
+        if ( error ) {
+          return reject( { message: error.message } );
+        }
+
+        resolve( { month: moment( rows[ 0 ].date ).month() + 1, year: moment( rows[ 0 ].date ).year() } );
+      } );
+    } )
+    .then( function onLastMonth( result ) {
+      return getMonthlyData( params, indicator, result.month, result.year );
+    } );
+
+  }
+
 
   /**
    * @name setConnection
@@ -191,7 +228,8 @@ function mySqlAdapter() {
   return {
     setDataSource: setDataSource,
     getTableData: getTableData,
-    getMonthlyData: getMonthlyData
+    getMonthlyData: getMonthlyData,
+    getLastMonthData: getLastMonthData
   };
 }
 

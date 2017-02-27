@@ -5,7 +5,8 @@
  */
 function utils() {
 
-  var moment = require( 'moment' );
+  var moment = require( 'moment' ),
+    _ = require( 'lodash' );
 
   /**
    * @name setConnString
@@ -44,14 +45,16 @@ function utils() {
       to = moment( date ).endOf( 'month' ).format( 'YYYY-MM-DD' ),
       dateQuery = `${dateColumn} BETWEEN STR_TO_DATE('${from}','%Y-%m-%d')  and STR_TO_DATE('${to}','%Y-%m-%d')`;
 
+    // scape for tables with names like this => "table-name"
+    tableName = '`' + tableName + '`';
+
     if ( params.engine === 'mssql' ) {
       dateQuery = `${dateColumn} BETWEEN '${from}' and '${to}'`;
     }
 
     if ( columnOperation === 5 ) {
-      if ( query && query.length && query.matches( '${filtrofecha}' ) ) {
-        query.replace( '${filtrofecha}', dateQuery );
-        return query;
+      if ( query && query.length && _.includes( query, '${filtrofecha}' ) ) {
+        return query.replace( '${filtrofecha}', dateQuery );
       } else {
         throw 'La consulta no tiene un filtro por mes, por favor agregue al final de WHERE "AND ${filtrofecha}"';
       }

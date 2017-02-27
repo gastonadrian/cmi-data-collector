@@ -5,16 +5,16 @@
   angular.module( 'data-collector' )
     .controller( 'homeController', homeController );
 
-  homeController.$inject = [ '$rootScope', 'ipc', '$state' ];
+  homeController.$inject = [ '$scope', 'ipc', '$state' ];
   /**
    * @name homeController
    * @description Controller de la primera vista
-   * @param {any} $rootScope - $rootScope
+   * @param {any} $scope - $scope
    * @param {any} ipc - ipc
    * @param {any} $state - $state
    * @returns {Object} - Objeto con la interfaz publica del scope
    */
-  function homeController( $rootScope, ipc, $state ) {
+  function homeController( $scope, ipc, $state ) {
     var self = this;
 
     angular.extend( self, {
@@ -33,16 +33,16 @@
       }
     } );
 
-    $rootScope.$on( 'electron-msg', ( event, msg ) => {
-      if ( msg.msg === 'connect-database-ok' ) {
-        handleDatabaseOk( msg.data );
-      }
-      if ( msg.msg === 'save-database-ok' ) {
-        $state.go( 'datasourceTable', { datasourceId: msg.databaseId, tableName: self.firstTable } );
-      }
-      if ( msg.msg === 'save-database-error' ) {
-        self.saveDatabaseLabel = 'Ha ocurrido un error, intente nuevamente!';
-      }
+    $scope.$on( 'connect-database-ok', ( event, msg ) => {
+      handleDatabaseOk( msg );
+    } );
+
+    $scope.$on( 'save-database-ok', ( event, msg ) => {
+      $state.go( 'datasourceTable', { datasourceId: msg, tableName: self.firstTable } );
+    } );
+
+    $scope.$on( 'save-database-error', () => {
+      self.saveDatabaseLabel = 'Ha ocurrido un error, intente nuevamente!';
     } );
 
     /**

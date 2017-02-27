@@ -7,12 +7,13 @@
     <link rel="stylesheet" href="./../lib/angular-material/angular-material.min.css">
     <link rel="stylesheet" href="./../lib/angular-material-icons/angular-material-icons.css"> 
     <link rel="stylesheet" href="./css/app.css">
-    <link rel="stylesheet" href="./../lib/angular-data-grid/demo/material/css/angular-data-grid.material.css">
+    <link rel="stylesheet" href="./../lib/md-data-table/md-data-table.min.css">
+    <!--<link rel="stylesheet" href="./../lib/angular-data-grid/demo/material/css/angular-data-grid.material.css">-->
   </head>
   <body data-ng-app="data-collector" data-ng-cloak layout="column">
     <md-toolbar layout="row">
         <md-button class="menu" hide-gt-sm>
-            <md-icon md-svg-icon="menu"></md-icon>
+            <ng-md-icon icon="menu"></ng-md-icon>
         </md-button>
         <h3 class="text-center">Configurar fuentes de datos</h3>
     </md-toolbar>
@@ -43,7 +44,7 @@
                         </md-button>
                         <md-menu-content width="6">
                             <md-menu-item data-ng-repeat="table in database.tables">
-                                <md-button>
+                                <md-button data-ng-click="main.selectTable(database, table)">
                                     {{table}}
                                 </md-button>
                             </md-menu-item>
@@ -93,14 +94,15 @@
     <script src="./../lib/angular-messages/angular-messages.min.js"></script>
     <script src="./../lib/angular-material-icons/angular-material-icons.min.js"></script>  
     <script src="./../lib/angular-ui-router/release/angular-ui-router.min.js"></script>
-    <script src="./../lib/angular-data-grid/dist/pagination.min.js"></script> 
-    <script src="./../lib/angular-data-grid/dist/dataGrid.min.js"></script>
+    <script src="./../lib/md-data-table/md-data-table.min.js"></script>
 
     <script src="./../lib/electangular.js"></script>
     <script src="./app.js"></script>
     <script src="./home/home.controller.js"></script>
+    <script src="./login/login.controller.js"></script>
     <script src="./add-database/add-database.controller.js"></script>
     <script src="./datasource/datasourceTable.controller.js"></script>
+    <script src="./indicators/configureIndicator.controller.js"></script>
     <script>
         // You can also require other files to run in this process
         require('./../backend/renderer.js')
