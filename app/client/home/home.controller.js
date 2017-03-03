@@ -115,7 +115,7 @@
       }
       self.showDatabase = true;
       self.databaseName = data.databaseName;
-      self.data = data.tables;
+      self.tables = data.tables;
       self.firstTable = data.tables[ 0 ];
     }
 
@@ -153,7 +153,13 @@
 
     }
 
-    $scope.$on('frontend-started-ok', init );
+    if($rootScope.frontendStarted){
+      init();
+    }
+    else{
+      $scope.$on('frontend-started-ok', init );
+    }
+
   }
 
 } )();

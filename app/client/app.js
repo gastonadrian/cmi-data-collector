@@ -159,7 +159,8 @@
       }      
 
       if ( msg.msg === 'frontend-started-ok' ) {
-        
+        $rootScope.frontendStarted = true;
+
         $rootScope.$broadcast('frontend-started-ok', {});
 
         ipc.send( {

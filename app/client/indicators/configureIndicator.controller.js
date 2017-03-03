@@ -183,7 +183,12 @@
       } );
     }
 
-    $scope.$on('frontend-started-ok', init );
+    if($rootScope.frontendStarted){
+      init();
+    }
+    else{
+      $scope.$on('frontend-started-ok', init );
+    }
 
   }
 } )();
