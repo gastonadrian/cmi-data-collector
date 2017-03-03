@@ -30,6 +30,7 @@ var app = require( 'electron' ).remote,
   queuedMessagesToFrontend = [];
 
 init();
+// sendMessageToMain ('init-event', '/indicators/configure/58b5c280124a98c5e6bc2fd2');
 
 /**
  * @name init
@@ -119,9 +120,6 @@ function authenticate( event, args, callback ) {
  * @returns {void}
  */
 function setListeners() {
-  var test = 'indicators/configure/58b1aab3d7693713051a8683';
-  sendMessageToMain( 'init-event', test );
-
 
   // datasources
 
@@ -161,12 +159,22 @@ function setListeners() {
 
   // import data
 
-  ipcRenderer.on( 'import-preview', ( event, arg ) => {
-    importData( arg.indicator, arg.datasource, null, null, false, 'import-preview' );
+  ipcRenderer.on( 'get-indicators-sync', ( event, arg ) => {
+    apiClient.getIndicatorsSync()
+      .then(function onOk( response ) {
+        sendMessageToMain(  'get-indicators-sync-ok', response );
+      })
+      .catch(function onError( error ) {
+        sendMessageToMain( 'get-indicators-sync-error', error );
+      } );
   } );
 
-  ipcRenderer.on( 'import-data', ( event, arg ) => {
-    importData( arg.indicator, arg.datasource, arg.month, arg.year, true, 'import-data' );
+  ipcRenderer.on( 'import-preview', ( event, arg ) => {
+    importData( arg.indicator, arg.datasource, true, 'import-preview' );
+  } );
+
+  ipcRenderer.on( 'import-indicator', ( event, arg ) => {
+    importData( arg.indicator, arg.datasource, false, 'import-indicator' );
   } );
 
   // indicators
@@ -207,13 +215,12 @@ function setListeners() {
  * @description Calcula el consolidado de datos de un mes para un indicador
  * @param {Indicator} indicator - El indicador sobre el cual calcular el consolidado
  * @param {Datasource} datasource - La fuente de datos de donde consultar datos
- * @param {number} month - Mes requerido
- * @param {number} year - Anio requerido
+ * @param {Boolean} preview - Bandera que indica si queremos realizar una preview de los datos, o trigger un guardado de datos
  * @param {Boolean} save - Si se desea guardar la importacion realizada.
  * @param {String} msgToken - Token de mensaje para notificar al que inicio la llamada
  * @returns {Promise} - Promesa que contiene el resultado de los datos guardados en el microservicio
  */
-function importData( indicator, datasource, month, year, save, msgToken ) {
+function importData( indicator, datasource, preview, msgToken ) {
   var provider,
     connectionParams,
     returnPromise;
@@ -236,30 +243,24 @@ function importData( indicator, datasource, month, year, save, msgToken ) {
       connectionParams = datasource.file;
     }
 
-    if ( year === null && month === null ) {
-      returnPromise = provider.getLastMonthData( connectionParams, indicator )
-    } else {
-      returnPromise = provider.getMonthlyData( connectionParams, indicator, month, year );
-    }
-
-    if ( save ) {
-      return returnPromise.then( apiClient.saveIndicatorData )
+    if ( preview ) {
+      return provider.getLastMonthData( connectionParams, indicator )
         .then( function onOk( response ) {
           sendMessageToMain( msgToken + '-ok', response );
         } )
         .catch( function onError( error ) {
           sendMessageToMain( msgToken + '-error', error );
         } );
+    } 
 
-    } else {
-      return returnPromise
-        .then( function onOk( response ) {
-          sendMessageToMain( msgToken + '-ok', response );
-        } )
-        .catch( function onError( error ) {
-          sendMessageToMain( msgToken + '-error', error );
-        } );
-    }
+    return provider.getMonthlyData( connectionParams, indicator )
+      .then( apiClient.saveIndicatorData )
+      .then( function onOk( response ) {
+        sendMessageToMain( msgToken + '-ok', response );
+      } )
+      .catch( function onError( error ) {
+        sendMessageToMain( msgToken + '-error', error );
+      } );  
 
   } );
 }

@@ -33,7 +33,7 @@ function utils() {
    * @param {number} year - Anio de importacion
    * @returns {String} consulta a ejecutarse
    */
-  function getImportQuery( params, indicator, month, year ) {
+  function _getImportQuery( params, indicator, month, year ) {
     var tableQuery = '',
       tableName = indicator.datasource.table,
       valueColumn = indicator.datasource.valueColumn,
@@ -79,6 +79,71 @@ function utils() {
     return tableQuery;
   }
 
+
+  /**
+   * @name getImportQuery
+   * @description Obtiene la consulta (query) a ser ejecutada para obtener el consolidado de datos
+   * @param {Object} params - Parametros de conexion
+   * @param {Indicator} indicator - Indicador sobre el cual pedir los datos
+   * @param {Date} from Fecha desde la cual se deberian importar los datos
+   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
+   * @returns {String} consulta a ejecutarse
+   */
+  function getImportQuery( params, indicator, from, to ) {
+    var tableQuery = '',
+      tableName = indicator.datasource.table,
+      valueColumn = indicator.datasource.valueColumn,
+      dateColumn = indicator.datasource.dateColumn,
+      columnOperation = indicator.datasource.columnOperation,
+      query = indicator.datasource.rowOperation,
+      fromString = moment(from).format('YYYY-MM-DD'),
+      toString = moment(to).format('YYYY-MM-DD'),
+      dateQuery = `${dateColumn} BETWEEN STR_TO_DATE('${fromString}','%Y-%m-%d')  and STR_TO_DATE('${toString}','%Y-%m-%d')`,
+      groupByPrefix = `MONTH(${dateColumn}) as mes, YEAR(${dateColumn}) as anio,`,
+      groupBy = `group by mes, anio order by anio, mes`;
+
+    // scape for tables with names like this => "table-name"
+    tableName = '`' + tableName + '`';
+
+    if ( params.engine === 'mssql' ) {
+      dateQuery = `${dateColumn} BETWEEN '${fromString}' and '${toString}'`;
+    }
+
+    if ( columnOperation === 5 ) {
+      if (!( query && query.length && _.includes( query, '${filtrofecha}' ) ) ) {
+        throw 'La consulta no tiene un filtro por mes, por favor agregue al final de WHERE "AND ${filtrofecha}"';
+      }
+
+      if (!( query && query.length && _.includes( query, '${prefijofiltrofecha}' ) ) ) {
+        throw 'La consulta no tiene un filtro por mes, por favor agregar al inicio de select "${prefijofiltrofecha}"';
+      }
+      
+      return query.replace( '${filtrofecha}', dateQuery ).replace('${prefijofiltrofecha}', groupByPrefix );
+
+    }
+
+    if ( columnOperation === 4 ) {
+      tableQuery = `select ${groupByPrefix} count(DISTINCT(${valueColumn})) as result from ${tableName} where ${dateQuery} ${groupBy}`;
+    }
+
+    if ( columnOperation === 2 ) {
+      tableQuery = `select ${groupByPrefix} SUM(${valueColumn}) as result from ${tableName} where ${dateQuery}  ${groupBy}`;
+    }
+
+    if ( columnOperation === 3 ) {
+      tableQuery = `select ${groupByPrefix} COUNT(${valueColumn}) as result from ${tableName} where ${dateQuery}  ${groupBy}`;
+    }
+
+    if ( columnOperation === 1 ) {
+      tableQuery = `select ${groupByPrefix} AVG(${valueColumn}) as result from ${tableName} where ${dateQuery}  ${groupBy}`;
+    }
+
+    return tableQuery;
+  }
+
+
+
+
   /**
    * @name queryImportCallback
    * @description Funcion a ejecutarse una vez los datos de importacion son devueltos por el proveedor de fuentes de datos
@@ -87,27 +152,24 @@ function utils() {
    * @param {Array} rows - Datos devueltos por el proveedor de fuentes de datos
    * @returns {IndicatorData} Objeto que contiene los datos del consolidado.
    */
-  function queryImportCallback( indicator, startOfMonth, rows ) {
-    var indicatorData = {
-      indicatorId: indicator._id,
-      customerId: indicator.customerId,
-      value: 0,
-      date: new Date( moment( startOfMonth ).endOf( 'month' ) )
-    };
+  function queryImportCallback( indicator, rows ) {
+    var result = [];
 
     // if not maching results for the query return 0;
     if ( !rows.data || !rows.data.length ) {
-      indicatorData.value = 0;
+      return result;
     }
 
-    // we only need to count the amount of results
-    if ( indicator.datasource.columnOperation === 4 ) {
-      indicatorData.value = rows.data.length;
-    } else {
-      indicatorData.value = rows.data[ 0 ].result;
+    for(var i=0; i< rows.data.length; i++){
+      result.push({
+        indicatorId: indicator._id,
+        customerId: indicator.customerId,
+        value: rows.data[i].result,
+        date: moment(new Date(rows.data[i].anio, rows.data[i].mes - 1, 1)).endOf('month').toDate()
+      });
     }
 
-    return indicatorData;
+    return result;
   }
 
   return {

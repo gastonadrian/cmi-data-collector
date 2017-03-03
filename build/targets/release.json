@@ -1,6 +1,6 @@
 {
     "debug": false,
-    "APIPORT":8080,
-    "APIHOST":"localhost",
-    "APIPREFIX":"api"    
+    "APIPORT":80,
+    "APIHOST":"cmi-dashboard.herokuapp.com",
+    "APIPREFIX":"api"
 }

@@ -32,6 +32,7 @@
         <md-input-container data-ng-show="configureIndicator.indicator.datasource.columnOperation === 5">
             <label>Consulta personalizada</label>
             <input type="text" data-ng-model="configureIndicator.indicator.datasource.rowOperation" required>
+            <span class="help-block md-accent">Inmediatamente luego de "select" debe ir "${prefijofiltrofecha}"</span>
             <span class="help-block md-accent">El campo con el valor resultado debe ser nombrado como "as result"</span>
             <span class="help-block md-accent">En where debe dejar como ultima condicion and "${filtrofecha}"</span>
         </md-input-container>

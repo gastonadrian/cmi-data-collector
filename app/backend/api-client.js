@@ -81,7 +81,7 @@ module.exports = function apiClient() {
    * @returns {Promise} - Promesa de llamada http
    */
   function saveIndicatorData( indicatorData ) {
-    return POST( 'indicatorsdata', indicatorData );
+    return POST( 'indicatorsdata', { data: indicatorData } );
   }
 
   /**
@@ -92,6 +92,15 @@ module.exports = function apiClient() {
    */
   function getIndicator( indicatorId ) {
     return GET( 'indicators/' + indicatorId );
+  }
+
+  /**
+   * @name getIndicatorsSync
+   * @description Obtiene todos los indicadores que pueden sincronizarse con la fecha de la ultima sincronizacion
+   * @returns {Promise} - Promesa que contiene el resultado de los datos guardados en el microservicio
+   */
+  function getIndicatorsSync(){
+    return GET( 'indicatorsgetsync' );
   }
 
   /**
@@ -178,6 +187,7 @@ module.exports = function apiClient() {
     saveIndicatorData: saveIndicatorData,
     getIndicator: getIndicator,
     saveIndicatorDataSource: saveIndicatorDataSource,
-    login: login
+    login: login,
+    getIndicatorsSync: getIndicatorsSync
   };
 };

@@ -1,4 +1,4 @@
-<div data-ng-show="home.init">
+<div data-ng-show="home.withoutDatasources && !home.showDatabase">
     <h3>Para empezar, configure sus fuentes de datos:</h3>
     <md-list>
         <md-list-item>
@@ -12,7 +12,7 @@
         </md-list-item>
     </md-list>
 </div>
-<div data-ng-show="!home.init">
+<div data-ng-show="home.showDatabase">
     <h3>Base de datos: {{home.databaseName}}</h3>
 
     <label for="">{{home.saveDatabaseLabel}}</label>
@@ -29,40 +29,52 @@
     
 
 </div>
-<h4 data-ng-show="!home.init">Vista Previa: Listado de tablas encontradas</h4>
-<div grid-data id='test' grid-options="home.gridOptions" grid-actions="home.gridActions" data-ng-show="home.gridOptions.data.length">
-    <table class="mdl-data-table mdl-js-data-table mdl-data-table--selectable mdl-shadow--2dp">
-        <thead>
-            <tr>
-                <th class="mdl-data-table__cell--non-numeric">
-                    <span>Nombre</span>
-                </th>
-            </tr>
-        </thead>
-        <tbody>
-        <tr grid-item>
-            <td class="mdl-data-table__cell--non-numeric">
-                <span ng-bind="item"></span>
-            </td>
-        </tr>
-        </tbody>
-    </table>
-    <div layout-xs="column" layout="row" layout-align-xs="end end" layout-align="end center">
-        <grid-pagination max-size="5"
-                            boundary-links="true"
-                            class="pagination"
-                            ng-if="home.paginationOptions.totalItems  > home.paginationOptions.itemsPerPage"
-                            total-items="home.paginationOptions.totalItems"
-                            ng-model="home.paginationOptions.currentPage"
-                            ng-change="home.reloadGrid()"
-                            items-per-page="home.paginationOptions.itemsPerPage"></grid-pagination>
-        <md-input-container flex-offset-gt-xs="5" class="items-per-page">
-            <md-select ng-model="home.paginationOptions.itemsPerPage" ng-change="home.reloadGrid()">
-                <md-option>10</md-option>
-                <md-option>25</md-option>
-                <md-option>50</md-option>
-                <md-option>75</md-option>
-            </md-select>
-        </md-input-container>
-    </div>
+<h4 data-ng-show="home.showDatabase">Vista Previa: Listado de tablas encontradas</h4>
+<md-table-container data-ng-show="home.showDatabase">
+<table md-table>
+    <thead md-head md-order="home.query.order" >
+    <tr md-row>
+        <th md-column md-order><span>Nombre</span></th>
+    </tr>
+    </thead>
+    <tbody md-body>
+    <tr md-row md-select="row" ng-repeat="row in home.tables | filter: home.query.filter | orderBy: home.query.order | limitTo: home.query.limit: (home.query.page -1) * home.query.limit">
+        <td md-cell >{{row}}</td>
+    </tr>
+    </tbody>
+</table>
+</md-table-container>
+<md-table-pagination data-ng-show="home.showDatabase" md-limit="home.query.limit" md-limit-options="[20, 50, 100]" md-page="home.query.page" md-total="{{ (home.tables | filter: home.query.filter).length }}"  md-page-select md-label="{page: 'Página:', rowsPerPage: 'Filas por página:', of: 'de'}"></md-table-pagination>
+
+<h4 data-ng-show="home.showIndicatorsSync">Indicadores activos</h4>
+<md-toolbar class="md-table-toolbar md-default" data-ng-show="home.showIndicatorsSync" aria-hidden="false">
+<div class="md-toolbar-tools">
+    <ng-md-icon icon="search"></ng-md-icon>
+    <form flex=""  class="flex">
+    <input type="text" data-ng-model="configureIndicator.indicatorsQuery.filter" placeholder="Buscar">
+    </form>
 </div>
+</md-toolbar>
+<md-table-container data-ng-show="home.showIndicatorsSync">
+<table md-table>
+    <thead md-head md-order="home.indicatorsQuery.order" >
+    <tr md-row>
+        <th md-column md-order-by="title"><span>Nombre</span></th>
+        <th md-column md-order-by="lastDateSynced"><span>Ultimo periodo sincronizado</span></th>
+        <th md-column><span>Acciones</span></th>
+    </tr>
+    </thead>
+    <tbody md-body>
+    <tr md-row md-select="row" ng-repeat="row in home.indicators | filter: home.indicatorsQuery.filter | orderBy: home.indicatorsQuery.order | limitTo: home.indicatorsQuery.limit: (home.indicatorsQuery.page -1) * home.indicatorsQuery.limit">
+        <td md-cell>{{row.title}}</td>
+        <td md-cell>{{row.lastDateSynced || (row.status === 'syncing' && 'SINCRONIZANDO' || 'NUNCA')}}</td>
+        <td md-cell>
+            <md-button class="md-primary" data-ng-show="row.status !== 'syncing' && row.status !== 'updated'" data-ng-click="home.sync(row)">Sincronizar</md-button>
+            <md-progress-circular data-ng-show="row.status === 'syncing'" md-mode="indeterminate" md-diameter="30"></md-progress-circular>
+            <md-label class="md-primary" data-ng-show="row.status === 'updated'" >Actualizado!</md-label>
+        </td>
+    </tr>
+    </tbody>
+</table>
+</md-table-container>
+<md-table-pagination data-ng-show="home.showIndicatorsSync" md-limit="home.indicatorsQuery.limit" md-limit-options="[20, 50, 100]" md-page="home.indicatorsQuery.page" md-total="{{ (home.indicators | filter: home.indicatorsQuery.filter).length }}"  md-page-select md-label="{page: 'Página:', rowsPerPage: 'Filas por página:', of: 'de'}"></md-table-pagination>

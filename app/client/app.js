@@ -145,8 +145,7 @@
     $rootScope.$on( 'electron-msg', ( event, msg ) => {
       if ( msg.msg === 'get-datasources-ok' ) {
         listDatasources( msg.data );
-        $rootScope.safeApply();
-        return;
+        $rootScope.datasources = msg.data;
       }
 
       if ( msg.msg === 'init-event' ) {
@@ -155,11 +154,23 @@
         return;
       }
 
+      if ( msg.msg === 'get-indicators-sync-ok' ) {
+        $rootScope.indicators = msg.data;
+      }      
+
       if ( msg.msg === 'frontend-started-ok' ) {
+        
+        $rootScope.$broadcast('frontend-started-ok', {});
+
         ipc.send( {
           msg: 'get-datasources',
           data: {}
         } );
+
+        ipc.send( {
+          msg: 'get-indicators-sync',
+          data: {}
+        } );        
       }
 
       if ( msg.msg === 'login-user' ) {
@@ -168,6 +179,16 @@
 
       if ( msg.msg === 'login-ok' ) {
         self.loginOpened = false;
+      }
+
+      if ( msg.msg === 'import-indicator-ok' ) {
+        for( var i =0; i< $rootScope.indicators.length; i++ ) {
+          if( $rootScope.indicators[i]._id === msg.data._id ) {
+            $rootScope.indicators[i].status = 'updated';
+            $rootScope.indicators[i].lastDateSynced = msg.data.date;
+            break;
+          }
+        }
       }
 
       $rootScope.$broadcast( msg.msg, msg.data );
@@ -211,6 +232,7 @@
      * @returns {void}
      */
     function init() {
+      $rootScope.indicatorsOnSync= [];
       ipc.send( {
         msg: 'frontend-started'
       } );

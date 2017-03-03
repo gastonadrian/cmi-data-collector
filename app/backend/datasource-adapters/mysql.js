@@ -114,7 +114,7 @@ function mySqlAdapter() {
         if ( !query || !query.length ) {
           settings.query = 'select * from ' + options.database + '.`' + tableName + '`';
           if ( limit ) {
-            settings.query += `limit ${settings.limit}`;
+            settings.query += `limit ${limit}`;
           }
         }
 
@@ -159,17 +159,59 @@ function mySqlAdapter() {
    * @description Obtiene el consolidado de datos para un mes especifico sobre los datos de un indicador
    * @param {Object} params Lista de opciones necesarias para conectarse a la bd
    * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
-   * @param {number} month Mes sobre el cual se quieren calcular los datos
-   * @param {number} year Anio sobre el cual se quieren calcular los datos
+   * @param {Date} from Fecha desde la cual se deberian importar los datos
+   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
    * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
    */
-  function getMonthlyData( params, indicator, month, year ) {
+  function getMonthlyData( params, indicator, from, to ) {
 
-    var tableQuery = utils.getImportQuery( params, indicator, month, year );
+    return getFromToDates( params, indicator, from, to )
+      .then(function onDates( dates ) {
+          from = dates.from;
+          to = dates.to;
 
-    return getTableData( params, indicator.table, 0, tableQuery, null, false )
-      .then( utils.queryImportCallback.bind( this, indicator, new Date( year, month - 1, 1 ) ) );
+          var tableQuery = utils.getImportQuery( params, indicator, from, to );
+
+          return getTableData( params, indicator.table, 0, tableQuery, null, false )
+            .then( utils.queryImportCallback.bind( this, indicator ) );
+       } );
   }
+  
+  /**
+   * @name getFromToDates
+   * @description Valida y devuelve el rango de datos sobre el cual importar los datos
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @param {Date} from Fecha desde la cual se deberian importar los datos
+   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
+   * @returns {Promise} Promesa que devuelve las fechas sobre las cuales importar datos
+   */
+  function getFromToDates( params, indicator, from, to ) {
+    return new Promise( function getDatesPromise(resolve, reject ) {
+      var result = {
+        from:from,
+        to:to
+      };
+
+      // defaults "TO" to today
+      if(!to || !moment(to).isValid()){
+        result.to = new Date();
+      }
+
+      if(!from || !moment(from).isValid()){
+        return getMinDate( params, indicator )
+          .then(function (date){
+              result.from = new Date(date.year, date.month - 1, 1);
+              resolve(result);
+              return result;
+          });
+      }
+
+      resolve(result);
+      return result;
+    } );
+  }
+
 
   /**
    * @name getLastMonthData
@@ -179,8 +221,44 @@ function mySqlAdapter() {
    * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
    */
   function getLastMonthData( params, indicator ) {
+    return getMaxDate( params, indicator )
+      .then( function onLastMonth( result ) {
+        return getMonthlyData( params, indicator, result.month, result.year );
+      } );
+  }
 
+  /**
+   * @name getMaxDate
+   * @description Obtiene la fecha del ultimo registro cargado en la tabla
+   * @param {any} params - Parametros de conexion a la base de datos
+   * @param {any} indicator - Indicador sobre el cual se quiere conectar
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve el mes y anio del ultimo registro
+   */
+  function getMaxDate( params, indicator ){
     var query = 'select ' + indicator.datasource.dateColumn + ' as date from ' + params.database + '.`' + indicator.datasource.table + '` order by ' + indicator.datasource.dateColumn + ' desc limit 1';
+    return executeMonthQuery( params, query );
+  }
+
+  /**
+   * @name getMaxDate
+   * @description Obtiene la fecha del ultimo registro cargado en la tabla
+   * @param {any} params - Parametros de conexion a la base de datos
+   * @param {any} indicator - Indicador sobre el cual se quiere conectar
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve el mes y del primer registro
+   */
+  function getMinDate( params, indicator ){
+    var query = 'select ' + indicator.datasource.dateColumn + ' as date from ' + params.database + '.`' + indicator.datasource.table + '` order by ' + indicator.datasource.dateColumn + ' asc limit 1';
+    return executeMonthQuery( params, query );
+  }
+
+  /**
+   * @name executeMonthQuery
+   * @description Dada una consulta de base de datos relacionada con fechas, devuelve el mes y la fecha
+   * @param {any} params - Parametros de conexion a la base de datos
+   * @param {any} query - Consulta de base de datos
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve el mes y anio
+   */
+  function executeMonthQuery( params, query ){
     _.merge( options, params );
     setConnection();
 
@@ -193,13 +271,8 @@ function mySqlAdapter() {
 
         resolve( { month: moment( rows[ 0 ].date ).month() + 1, year: moment( rows[ 0 ].date ).year() } );
       } );
-    } )
-    .then( function onLastMonth( result ) {
-      return getMonthlyData( params, indicator, result.month, result.year );
-    } );
-
+    } )    
   }
-
 
   /**
    * @name setConnection

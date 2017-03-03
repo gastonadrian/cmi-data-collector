@@ -110,7 +110,7 @@
       self.indicator.datasource.table = self.table;
 
       if ( self.indicator.datasource.columnOperation === 5 ) {
-        self.indicator.datasource.rowOperation = 'select count(*) as result from ' + self.table + ' where  ${filtrofecha}';
+        self.indicator.datasource.rowOperation = 'select ${prefijofiltrofecha} count(*) as result from ' + self.table + ' where  ${filtrofecha}';
       }
     }
 
@@ -183,6 +183,7 @@
       } );
     }
 
-    init();
+    $scope.$on('frontend-started-ok', init );
+
   }
 } )();
