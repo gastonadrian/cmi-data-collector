@@ -31,6 +31,8 @@ var app = require( 'electron' ).remote,
   path = require( 'path' ),
   _ = require( 'lodash' ),
   ipcRenderer = require( 'electron' ).ipcRenderer,
+  settings = require( 'electron-settings' ),
+
   excel = require( './datasource-adapters/xls' ),
   csv = require( './datasource-adapters/csv' ),
   json = require( './datasource-adapters/json' ),
@@ -51,9 +53,12 @@ var app = require( 'electron' ).remote,
   fileOptions = {
     getFirstTableData: true,
     filePath: ''
-  };
+  },
+  hasFrontendStarted = false,
+  queuedMessagesToFrontend = [];
 
 init();
+// sendMessageToMain ('init-event', '/indicators/configure/58b5c280124a98c5e6bc2fd2');
 
 /**
  * @name init
@@ -61,10 +66,90 @@ init();
  * @returns {void}
  */
 function init() {
-  ipcRenderer.on( 'init-params', ( event, arg ) => {
-    console.log(arg);
-    sendMessageToMain( 'init-event', arg );
+
+  settings.defaults( {
+    credentials: {}
   } );
+
+  // wait for init-params
+  ipcRenderer.on( 'init-params', ( event, arg ) => {
+    var url = arg.replace( 'data-collector://', '' );
+    sendMessageToMain( 'init-event', url );
+  } );
+
+  ipcRenderer.on( 'login', ( event, arg ) => {
+    authenticate( event, arg, setListeners );
+  } );
+
+  // frontend integration, login as soon the app starts
+  ipcRenderer.on( 'frontend-started', () => {
+    hasFrontendStarted = true;
+
+    if ( settings.hasSync( 'credentials.email' ) &amp;&amp; settings.hasSync( 'credentials.password' ) ) {
+      // authenticate
+      authenticate( null, { email: settings.getSync( 'credentials.email' ), password: settings.getSync( 'credentials.password' ) }, setListeners );
+    } else {
+      // open login form
+      ipcRenderer.send( 'renderer-msg', {
+        msg: 'login-user',
+        data: {}
+      } );
+    }
+  } );
+}
+
+/**
+ * @name authenticate
+ * @description Autentica al usuario contra el servidor, y guarda las credenciales para futuros usos
+ * @param {any} event - Evento
+ * @param {any} args - Argumentos, parametros de conexion
+ * @param {any} callback - Callback al que se desea llamar en caso de exito
+ * @returns {void}
+ */
+function authenticate( event, args, callback ) {
+  apiClient.login( args.email, args.password )
+    .then( function onOk( response ) {
+
+      //
+      if ( response === 'Unauthorized' ) {
+        ipcRenderer.send( 'renderer-msg', {
+          msg: 'login-error',
+          data: response
+        } );
+
+        ipcRenderer.send( 'renderer-msg', {
+          msg: 'login-user',
+          data: {}
+        } );
+        return;
+      }
+
+      if ( callback ) {
+        callback();
+      }
+
+      ipcRenderer.send( 'renderer-msg', {
+        msg: 'login-ok',
+        data: {}
+      } );
+
+
+      // save settings
+      if ( !settings.hasSync( 'credentials.email' ) ) {
+        settings.set( 'credentials', { email: args.email, password: args.password }, { atomicSaving: false } );
+      }
+    } );
+}
+
+
+/**
+ * @name setListeners
+ * @description Inicializa los listeners
+ * @returns {void}
+ */
+function setListeners() {
+
+  // datasources
 
   ipcRenderer.on( 'connect-database', ( event, arg ) => {
     processDataSource( arg.engine, arg )
@@ -96,15 +181,61 @@ function init() {
 
   ipcRenderer.on( 'get-datasources', getDatasources );
 
-  ipcRenderer.on( 'import-data', ( event, arg ) => {
-    importData( arg.indicator, arg.datasource, arg.month, arg.year )
-      .then( function onOk( response ) {
-        sendMessageToMain( 'import-data-ok', response );
-      } )
-      .catch( function onError( error ) {
-        sendMessageToMain( 'import-data-error', error );
+  ipcRenderer.on( 'get-table-data', ( event, arg ) => {
+    getTableData( arg.datasource, arg.tableName );
+  } );
+
+  // import data
+
+  ipcRenderer.on( 'get-indicators-sync', ( event, arg ) => {
+    apiClient.getIndicatorsSync()
+      .then(function onOk( response ) {
+        sendMessageToMain(  'get-indicators-sync-ok', response );
+      })
+      .catch(function onError( error ) {
+        sendMessageToMain( 'get-indicators-sync-error', error );
       } );
   } );
+
+  ipcRenderer.on( 'import-preview', ( event, arg ) => {
+    importData( arg.indicator, arg.datasource, true, 'import-preview' );
+  } );
+
+  ipcRenderer.on( 'import-indicator', ( event, arg ) => {
+    importData( arg.indicator, arg.datasource, false, 'import-indicator' );
+  } );
+
+  // indicators
+
+  ipcRenderer.on( 'get-indicator', ( event, arg ) => {
+    apiClient.getIndicator( arg.id )
+      .then( function onOk( response ) {
+        sendMessageToMain( 'get-indicator-ok', response );
+      } )
+      .catch( function onError( error ) {
+        sendMessageToMain( 'get-indicator-error', error );
+      } );
+  } );
+
+  ipcRenderer.on( 'save-indicator', ( event, arg ) => {
+    apiClient.saveIndicatorDataSource( arg )
+      .then( function onOk( response ) {
+        sendMessageToMain( 'save-indicator-ok', response );
+      } )
+      .catch( function onError( error ) {
+        sendMessageToMain( 'save-indicator-error', error );
+      } );
+  } );
+
+
+  // frontend integration
+
+  if ( hasFrontendStarted ) {
+    resumeMessages();
+  } else {
+    ipcRenderer.on( 'frontend-started', resumeMessages );
+  }
+
 }
 
 /**
@@ -112,13 +243,15 @@ function init() {
  * @description Calcula el consolidado de datos de un mes para un indicador
  * @param {Indicator} indicator - El indicador sobre el cual calcular el consolidado
  * @param {Datasource} datasource - La fuente de datos de donde consultar datos
- * @param {number} month - Mes requerido
- * @param {number} year - Anio requerido
+ * @param {Boolean} preview - Bandera que indica si queremos realizar una preview de los datos, o trigger un guardado de datos
+ * @param {Boolean} save - Si se desea guardar la importacion realizada.
+ * @param {String} msgToken - Token de mensaje para notificar al que inicio la llamada
  * @returns {Promise} - Promesa que contiene el resultado de los datos guardados en el microservicio
  */
-function importData( indicator, datasource, month, year ) {
+function importData( indicator, datasource, preview, msgToken ) {
   var provider,
-    connectionParams;
+    connectionParams,
+    returnPromise;
 
   return new Promise( function onImport( resolve, reject ) {
     if ( !_.includes( datasource.tables, indicator.datasource.table ) ) {
@@ -134,12 +267,58 @@ function importData( indicator, datasource, month, year ) {
       provider = getDataSourceProvider( datasource.database.engine );
       connectionParams = datasource.database;
     } else {
+      provider = getDataSourceProvider( datasource.file.extension );
       connectionParams = datasource.file;
     }
 
-    return provider.getMonthlyData( connectionParams, indicator, month, year )
-      .then( apiClient.saveIndicatorData );
+    if ( preview ) {
+      return provider.getLastMonthData( connectionParams, indicator )
+        .then( function onOk( response ) {
+          sendMessageToMain( msgToken + '-ok', response );
+        } )
+        .catch( function onError( error ) {
+          sendMessageToMain( msgToken + '-error', error );
+        } );
+    } 
+
+    return provider.getMonthlyData( connectionParams, indicator )
+      .then( apiClient.saveIndicatorData )
+      .then( function onOk( response ) {
+        sendMessageToMain( msgToken + '-ok', response );
+      } )
+      .catch( function onError( error ) {
+        sendMessageToMain( msgToken + '-error', error );
+      } );  
+
   } );
+}
+
+
+/**
+ * @name getTableData
+ * @description Obtiene una tabla con sus datos
+ * @param {Object} datasource - Fuente de datos
+ * @param {String} tableName - Nombre de tabla
+ * @returns {Promise} Una promesa con los resultados de la conexion a la fuente de datos
+ */
+function getTableData( datasource, tableName ) {
+  var provider,
+    params;
+
+  if ( datasource.type === 1 ) {
+    provider = getDataSourceProvider( datasource.database.engine );
+    params = datasource.database;
+  } else {
+    provider = getDataSourceProvider( datasource.file.extension );
+    params = datasource.file;
+  }
+  provider.getTableData( params, tableName )
+    .then( function onGetTable( data ) {
+      sendMessageToMain( 'get-table-data-ok', data );
+    } )
+    .catch( function onError( error ) {
+      sendMessageToMain( 'get-table-data-error', error );
+    } );
 }
 
 /**
@@ -150,10 +329,31 @@ function importData( indicator, datasource, month, year ) {
  * @returns {void}
  */
 function sendMessageToMain( msg, data ) {
+
+  if ( !hasFrontendStarted ) {
+    queuedMessagesToFrontend.push( { msg: msg, data: data } )
+    return;
+  }
+
   ipcRenderer.send( 'renderer-msg', {
     msg: msg,
     data: data
   } );
+}
+
+/**
+ * @name resumeMessages
+ * @description Comienza a enviar todos los mensajes que no pudieron enviarse porque el front no estaba iniciado
+ * @returns {void}
+ */
+function resumeMessages() {
+  var i = 0;
+  hasFrontendStarted = true;
+  sendMessageToMain( 'frontend-started-ok' );
+
+  for ( i = 0; i &lt; queuedMessagesToFrontend.length; i++ ) {
+    sendMessageToMain( queuedMessagesToFrontend[ i ].msg, queuedMessagesToFrontend[ i ].data );
+  }
 }
 
 /**
@@ -184,7 +384,6 @@ function openDatasourceFile( fileNames ) {
     return processDataSource( extension, fileOptions );
   }
 }
-
 
 /**
  * @name processDataSource
@@ -237,13 +436,13 @@ function getDatasources() {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Externals</h3><ul><li><a href="external-Duplex.html">Duplex</a></li><li><a href="external-Readable.html">Readable</a></li></ul><h3>Classes</h3><ul><li><a href="Admin.html">Admin</a></li><li><a href="AggregationCursor.html">AggregationCursor</a></li><li><a href="BulkWriteResult.html">BulkWriteResult</a></li><li><a href="Chunk.html">Chunk</a></li><li><a href="Collection.html">Collection</a></li><li><a href="CommandCursor.html">CommandCursor</a></li><li><a href="Cursor.html">Cursor</a></li><li><a href="Db.html">Db</a></li><li><a href="FindOperatorsOrdered.html">FindOperatorsOrdered</a></li><li><a href="FindOperatorsUnordered.html">FindOperatorsUnordered</a></li><li><a href="GridFSBucket.html">GridFSBucket</a></li><li><a href="GridFSBucketReadStream.html">GridFSBucketReadStream</a></li><li><a href="GridFSBucketWriteStream.html">GridFSBucketWriteStream</a></li><li><a href="GridStore.html">GridStore</a></li><li><a href="GridStoreStream.html">GridStoreStream</a></li><li><a href="MongoClient.html">MongoClient</a></li><li><a href="Mongos.html">Mongos</a></li><li><a href="OrderedBulkOperation.html">OrderedBulkOperation</a></li><li><a href="ReadPreference.html">ReadPreference</a></li><li><a href="ReplSet.html">ReplSet</a></li><li><a href="Server.html">Server</a></li><li><a href="UnorderedBulkOperation.html">UnorderedBulkOperation</a></li><li><a href="WriteConcernError.html">WriteConcernError</a></li><li><a href="WriteError.html">WriteError</a></li></ul><h3>Events</h3><ul><li><a href="AggregationCursor.html#event:close">close</a></li><li><a href="AggregationCursor.html#event:data">data</a></li><li><a href="AggregationCursor.html#event:end">end</a></li><li><a href="AggregationCursor.html#event:readable">readable</a></li><li><a href="CommandCursor.html#event:close">close</a></li><li><a href="CommandCursor.html#event:data">data</a></li><li><a href="CommandCursor.html#event:end">end</a></li><li><a href="CommandCursor.html#event:readable">readable</a></li><li><a href="Cursor.html#event:close">close</a></li><li><a href="Cursor.html#event:data">data</a></li><li><a href="Cursor.html#event:end">end</a></li><li><a href="Cursor.html#event:readable">readable</a></li><li><a href="Db.html#event:authenticated">authenticated</a></li><li><a href="Db.html#event:close">close</a></li><li><a href="Db.html#event:error">error</a></li><li><a href="Db.html#event:fullsetup">fullsetup</a></li><li><a href="Db.html#event:parseError">parseError</a></li><li><a href="Db.html#event:reconnect">reconnect</a></li><li><a href="Db.html#event:timeout">timeout</a></li><li><a href="GridFSBucket.html#event:index">index</a></li><li><a href="GridFSBucketReadStream.html#event:close">close</a></li><li><a href="GridFSBucketReadStream.html#event:data">data</a></li><li><a href="GridFSBucketReadStream.html#event:end">end</a></li><li><a href="GridFSBucketReadStream.html#event:error">error</a></li><li><a href="GridFSBucketReadStream.html#event:file">file</a></li><li><a href="GridFSBucketWriteStream.html#event:error">error</a></li><li><a href="GridFSBucketWriteStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:close">close</a></li><li><a href="GridStoreStream.html#event:data">data</a></li><li><a href="GridStoreStream.html#event:drain">drain</a></li><li><a href="GridStoreStream.html#event:end">end</a></li><li><a href="GridStoreStream.html#event:error">error</a></li><li><a href="GridStoreStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:pipe">pipe</a></li><li><a href="GridStoreStream.html#event:readable">readable</a></li><li><a href="GridStoreStream.html#event:unpipe">unpipe</a></li><li><a href="Mongos.html#event:close">close</a></li><li><a href="Mongos.html#event:connect">connect</a></li><li><a href="Mongos.html#event:error">error</a></li><li><a href="Mongos.html#event:fullsetup">fullsetup</a></li><li><a href="Mongos.html#event:ha">ha</a></li><li><a href="Mongos.html#event:joined">joined</a></li><li><a href="Mongos.html#event:left">left</a></li><li><a href="Mongos.html#event:open">open</a></li><li><a href="Mongos.html#event:parseError">parseError</a></li><li><a href="Mongos.html#event:timeout">timeout</a></li><li><a href="ReplSet.html#event:close">close</a></li><li><a href="ReplSet.html#event:connect">connect</a></li><li><a href="ReplSet.html#event:error">error</a></li><li><a href="ReplSet.html#event:fullsetup">fullsetup</a></li><li><a href="ReplSet.html#event:ha">ha</a></li><li><a href="ReplSet.html#event:joined">joined</a></li><li><a href="ReplSet.html#event:left">left</a></li><li><a href="ReplSet.html#event:open">open</a></li><li><a href="ReplSet.html#event:parseError">parseError</a></li><li><a href="ReplSet.html#event:timeout">timeout</a></li><li><a href="Server.html#event:close">close</a></li><li><a href="Server.html#event:connect">connect</a></li><li><a href="Server.html#event:error">error</a></li><li><a href="Server.html#event:parseError">parseError</a></li><li><a href="Server.html#event:reconnect">reconnect</a></li><li><a href="Server.html#event:timeout">timeout</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addDatabaseController">addDatabaseController</a></li><li><a href="global.html#apiClient">apiClient</a></li><li><a href="global.html#cancel">cancel</a></li><li><a href="global.html#convertReadPreference">convertReadPreference</a></li><li><a href="global.html#createMenu">createMenu</a></li><li><a href="global.html#csvAdapter">csvAdapter</a></li><li><a href="global.html#datasourceTableController">datasourceTableController</a></li><li><a href="global.html#disableZoomUI">disableZoomUI</a></li><li><a href="global.html#enableZoomUI">enableZoomUI</a></li><li><a href="global.html#excelAdapter">excelAdapter</a></li><li><a href="global.html#GET">GET</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataSourceProvider">getDataSourceProvider</a></li><li><a href="global.html#getDatasources">getDatasources</a></li><li><a href="global.html#getImportPreview">getImportPreview</a></li><li><a href="global.html#getImportQuery">getImportQuery</a></li><li><a href="global.html#getMonthlyData">getMonthlyData</a></li><li><a href="global.html#getServerInfo">getServerInfo</a></li><li><a href="global.html#getTableData">getTableData</a></li><li><a href="global.html#getTables">getTables</a></li><li><a href="global.html#getZoomUI">getZoomUI</a></li><li><a href="global.html#handleDatabaseOk">handleDatabaseOk</a></li><li><a href="global.html#handleUrl">handleUrl</a></li><li><a href="global.html#homeController">homeController</a></li><li><a href="global.html#importData">importData</a></li><li><a href="global.html#importPreviewController">importPreviewController</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#jsonAdapter">jsonAdapter</a></li><li><a href="global.html#listDatasources">listDatasources</a></li><li><a href="global.html#mainController">mainController</a></li><li><a href="global.html#makeSingleInstance">makeSingleInstance</a></li><li><a href="global.html#mongoAdapter">mongoAdapter</a></li><li><a href="global.html#mssqlAdapter">mssqlAdapter</a></li><li><a href="global.html#mySqlAdapter">mySqlAdapter</a></li><li><a href="global.html#ok">ok</a></li><li><a href="global.html#onClosed">onClosed</a></li><li><a href="global.html#onConnectionError">onConnectionError</a></li><li><a href="global.html#openDatasourceFile">openDatasourceFile</a></li><li><a href="global.html#openMenu">openMenu</a></li><li><a href="global.html#POST">POST</a></li><li><a href="global.html#processDataSource">processDataSource</a></li><li><a href="global.html#queryImportCallback">queryImportCallback</a></li><li><a href="global.html#safeApply">safeApply</a></li><li><a href="global.html#saveDatabase">saveDatabase</a></li><li><a href="global.html#saveDataSource">saveDataSource</a></li><li><a href="global.html#saveIndicatorData">saveIndicatorData</a></li><li><a href="global.html#sendMessageToMain">sendMessageToMain</a></li><li><a href="global.html#setConnection">setConnection</a></li><li><a href="global.html#setConnString">setConnString</a></li><li><a href="global.html#setDataSource">setDataSource</a></li><li><a href="global.html#setupConnection">setupConnection</a></li><li><a href="global.html#showDatabaseDialog">showDatabaseDialog</a></li><li><a href="global.html#showFileDialog">showFileDialog</a></li><li><a href="global.html#utils">utils</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Externals</h3><ul><li><a href="external-Duplex.html">Duplex</a></li><li><a href="external-Readable.html">Readable</a></li></ul><h3>Classes</h3><ul><li><a href="Admin.html">Admin</a></li><li><a href="AggregationCursor.html">AggregationCursor</a></li><li><a href="BulkWriteResult.html">BulkWriteResult</a></li><li><a href="Chunk.html">Chunk</a></li><li><a href="Collection.html">Collection</a></li><li><a href="CommandCursor.html">CommandCursor</a></li><li><a href="Cursor.html">Cursor</a></li><li><a href="Db.html">Db</a></li><li><a href="FindOperatorsOrdered.html">FindOperatorsOrdered</a></li><li><a href="FindOperatorsUnordered.html">FindOperatorsUnordered</a></li><li><a href="GridFSBucket.html">GridFSBucket</a></li><li><a href="GridFSBucketReadStream.html">GridFSBucketReadStream</a></li><li><a href="GridFSBucketWriteStream.html">GridFSBucketWriteStream</a></li><li><a href="GridStore.html">GridStore</a></li><li><a href="GridStoreStream.html">GridStoreStream</a></li><li><a href="MongoClient.html">MongoClient</a></li><li><a href="Mongos.html">Mongos</a></li><li><a href="OrderedBulkOperation.html">OrderedBulkOperation</a></li><li><a href="ReadPreference.html">ReadPreference</a></li><li><a href="ReplSet.html">ReplSet</a></li><li><a href="Server.html">Server</a></li><li><a href="UnorderedBulkOperation.html">UnorderedBulkOperation</a></li><li><a href="WriteConcernError.html">WriteConcernError</a></li><li><a href="WriteError.html">WriteError</a></li></ul><h3>Events</h3><ul><li><a href="AggregationCursor.html#event:close">close</a></li><li><a href="AggregationCursor.html#event:data">data</a></li><li><a href="AggregationCursor.html#event:end">end</a></li><li><a href="AggregationCursor.html#event:readable">readable</a></li><li><a href="CommandCursor.html#event:close">close</a></li><li><a href="CommandCursor.html#event:data">data</a></li><li><a href="CommandCursor.html#event:end">end</a></li><li><a href="CommandCursor.html#event:readable">readable</a></li><li><a href="Cursor.html#event:close">close</a></li><li><a href="Cursor.html#event:data">data</a></li><li><a href="Cursor.html#event:end">end</a></li><li><a href="Cursor.html#event:readable">readable</a></li><li><a href="Db.html#event:authenticated">authenticated</a></li><li><a href="Db.html#event:close">close</a></li><li><a href="Db.html#event:error">error</a></li><li><a href="Db.html#event:fullsetup">fullsetup</a></li><li><a href="Db.html#event:parseError">parseError</a></li><li><a href="Db.html#event:reconnect">reconnect</a></li><li><a href="Db.html#event:timeout">timeout</a></li><li><a href="GridFSBucket.html#event:index">index</a></li><li><a href="GridFSBucketReadStream.html#event:close">close</a></li><li><a href="GridFSBucketReadStream.html#event:data">data</a></li><li><a href="GridFSBucketReadStream.html#event:end">end</a></li><li><a href="GridFSBucketReadStream.html#event:error">error</a></li><li><a href="GridFSBucketReadStream.html#event:file">file</a></li><li><a href="GridFSBucketWriteStream.html#event:error">error</a></li><li><a href="GridFSBucketWriteStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:close">close</a></li><li><a href="GridStoreStream.html#event:data">data</a></li><li><a href="GridStoreStream.html#event:drain">drain</a></li><li><a href="GridStoreStream.html#event:end">end</a></li><li><a href="GridStoreStream.html#event:error">error</a></li><li><a href="GridStoreStream.html#event:finish">finish</a></li><li><a href="GridStoreStream.html#event:pipe">pipe</a></li><li><a href="GridStoreStream.html#event:readable">readable</a></li><li><a href="GridStoreStream.html#event:unpipe">unpipe</a></li><li><a href="Mongos.html#event:close">close</a></li><li><a href="Mongos.html#event:connect">connect</a></li><li><a href="Mongos.html#event:error">error</a></li><li><a href="Mongos.html#event:fullsetup">fullsetup</a></li><li><a href="Mongos.html#event:ha">ha</a></li><li><a href="Mongos.html#event:joined">joined</a></li><li><a href="Mongos.html#event:left">left</a></li><li><a href="Mongos.html#event:open">open</a></li><li><a href="Mongos.html#event:parseError">parseError</a></li><li><a href="Mongos.html#event:timeout">timeout</a></li><li><a href="ReplSet.html#event:close">close</a></li><li><a href="ReplSet.html#event:connect">connect</a></li><li><a href="ReplSet.html#event:error">error</a></li><li><a href="ReplSet.html#event:fullsetup">fullsetup</a></li><li><a href="ReplSet.html#event:ha">ha</a></li><li><a href="ReplSet.html#event:joined">joined</a></li><li><a href="ReplSet.html#event:left">left</a></li><li><a href="ReplSet.html#event:open">open</a></li><li><a href="ReplSet.html#event:parseError">parseError</a></li><li><a href="ReplSet.html#event:timeout">timeout</a></li><li><a href="Server.html#event:close">close</a></li><li><a href="Server.html#event:connect">connect</a></li><li><a href="Server.html#event:error">error</a></li><li><a href="Server.html#event:parseError">parseError</a></li><li><a href="Server.html#event:reconnect">reconnect</a></li><li><a href="Server.html#event:timeout">timeout</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addDatabaseController">addDatabaseController</a></li><li><a href="global.html#apiClient">apiClient</a></li><li><a href="global.html#authenticate">authenticate</a></li><li><a href="global.html#cancel">cancel</a></li><li><a href="global.html#configureIndicatorController">configureIndicatorController</a></li><li><a href="global.html#convertReadPreference">convertReadPreference</a></li><li><a href="global.html#createMenu">createMenu</a></li><li><a href="global.html#csvAdapter">csvAdapter</a></li><li><a href="global.html#datasourceTableController">datasourceTableController</a></li><li><a href="global.html#disableZoomUI">disableZoomUI</a></li><li><a href="global.html#enableZoomUI">enableZoomUI</a></li><li><a href="global.html#excelAdapter">excelAdapter</a></li><li><a href="global.html#executeMonthQuery">executeMonthQuery</a></li><li><a href="global.html#GET">GET</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataSourceProvider">getDataSourceProvider</a></li><li><a href="global.html#getDatasources">getDatasources</a></li><li><a href="global.html#getFromToDates">getFromToDates</a></li><li><a href="global.html#getImportPreview">getImportPreview</a></li><li><a href="global.html#getImportQuery">getImportQuery</a></li><li><a href="global.html#getIndicator">getIndicator</a></li><li><a href="global.html#getIndicatorsSync">getIndicatorsSync</a></li><li><a href="global.html#getLastMonthData">getLastMonthData</a></li><li><a href="global.html#getMaxDate">getMaxDate</a></li><li><a href="global.html#getMonthlyData">getMonthlyData</a></li><li><a href="global.html#getServerInfo">getServerInfo</a></li><li><a href="global.html#getTableData">getTableData</a></li><li><a href="global.html#getTables">getTables</a></li><li><a href="global.html#getZoomUI">getZoomUI</a></li><li><a href="global.html#goToNext">goToNext</a></li><li><a href="global.html#handleDatabaseOk">handleDatabaseOk</a></li><li><a href="global.html#handleUrl">handleUrl</a></li><li><a href="global.html#homeController">homeController</a></li><li><a href="global.html#importData">importData</a></li><li><a href="global.html#importPreviewController">importPreviewController</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#jsonAdapter">jsonAdapter</a></li><li><a href="global.html#listDatasources">listDatasources</a></li><li><a href="global.html#loadIndicator">loadIndicator</a></li><li><a href="global.html#loadTableData">loadTableData</a></li><li><a href="global.html#login">login</a></li><li><a href="global.html#loginController">loginController</a></li><li><a href="global.html#mainController">mainController</a></li><li><a href="global.html#makeSingleInstance">makeSingleInstance</a></li><li><a href="global.html#mongoAdapter">mongoAdapter</a></li><li><a href="global.html#mssqlAdapter">mssqlAdapter</a></li><li><a href="global.html#mySqlAdapter">mySqlAdapter</a></li><li><a href="global.html#ok">ok</a></li><li><a href="global.html#onClosed">onClosed</a></li><li><a href="global.html#onConnectionError">onConnectionError</a></li><li><a href="global.html#onDateSelected">onDateSelected</a></li><li><a href="global.html#onValueSelected">onValueSelected</a></li><li><a href="global.html#openDatasourceFile">openDatasourceFile</a></li><li><a href="global.html#openMenu">openMenu</a></li><li><a href="global.html#POST">POST</a></li><li><a href="global.html#processDataSource">processDataSource</a></li><li><a href="global.html#queryImportCallback">queryImportCallback</a></li><li><a href="global.html#resumeMessages">resumeMessages</a></li><li><a href="global.html#safeApply">safeApply</a></li><li><a href="global.html#save">save</a></li><li><a href="global.html#saveDatabase">saveDatabase</a></li><li><a href="global.html#saveDataSource">saveDataSource</a></li><li><a href="global.html#saveIndicator">saveIndicator</a></li><li><a href="global.html#saveIndicatorData">saveIndicatorData</a></li><li><a href="global.html#selectTable">selectTable</a></li><li><a href="global.html#sendMessageToMain">sendMessageToMain</a></li><li><a href="global.html#setConnection">setConnection</a></li><li><a href="global.html#setConnString">setConnString</a></li><li><a href="global.html#setDataSource">setDataSource</a></li><li><a href="global.html#setListeners">setListeners</a></li><li><a href="global.html#setupConnection">setupConnection</a></li><li><a href="global.html#showDatabaseDialog">showDatabaseDialog</a></li><li><a href="global.html#showFileDialog">showFileDialog</a></li><li><a href="global.html#showLoginDialog">showLoginDialog</a></li><li><a href="global.html#sync">sync</a></li><li><a href="global.html#utils">utils</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a> on Sat Feb 25 2017 05:15:52 GMT+0000 (UTC)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a> on Fri Mar 03 2017 18:34:59 GMT+0000 (UTC)
 </footer>
 
 <script> prettyPrint(); </script>

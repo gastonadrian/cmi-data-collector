@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: client/app.js</title>
+    <title>JSDoc: Source: client/indicators/configureIndicator.controller.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: client/app.js</h1>
+    <h1 class="page-title">Source: client/indicators/configureIndicator.controller.js</h1>
 
     
 
@@ -26,234 +26,45 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>( function appBootstrap() {
+            <pre class="prettyprint source linenums"><code>( function homeControllerContainer() {
+
   'use strict';
 
-  angular.module( 'data-collector', [ 'ui.router', 'ngMaterial', 'ngMdIcons', 'electangular', 'ngMessages', 'md.data.table' ] )
-    .config( [
-      '$mdThemingProvider',
-      '$stateProvider',
-      '$urlRouterProvider',
-      function onConfig( $mdThemingProvider, $stateProvider, $urlRouterProvider ) {
-        $mdThemingProvider.theme( 'altTheme' )
-                .primaryPalette( 'indigo' );
-        $mdThemingProvider.setDefaultTheme( 'altTheme' );
+  angular.module( 'data-collector' )
+    .controller( 'configureIndicatorController', configureIndicatorController );
 
-        $urlRouterProvider.otherwise( '/' );
-
-        $stateProvider
-            .state( 'home', {
-              url: '/',
-              controller: 'homeController as home',
-              templateUrl: './home/home.template.html'
-            } )
-            .state( 'datasourceTable', {
-              url: '/datasource/:datasourceId/:tableName',
-              controller: 'datasourceTableController as datasourceTable',
-              templateUrl: './datasource/datasourceTable.template.html'
-            } )
-            .state( 'configureIndicator', {
-              url: '/indicators/configure/:indicatorId',
-              controller: 'configureIndicatorController as configureIndicator',
-              templateUrl: './indicators/configureIndicator.template.html'
-            } );
-      }
-    ] )
-    .run( [ '$rootScope', function onRun( $rootScope ) {
-
-      /**
-       * @name safeApply
-       * @description Asegura que no se produzcan errores
-       * @param {Function} fn - Funcion a ejecutar
-       * @returns {void}
-       */
-      $rootScope.safeApply = function safeApply( fn ) {
-        var phase = this.$$phase;
-        if ( phase == '$apply' || phase == '$digest' ) {
-          if ( fn &amp;&amp; ( typeof ( fn ) === 'function' ) ) {
-            fn();
-          }
-        } else {
-          this.$apply( fn );
-        }
-      };
-
-    } ] )
-    .filter( 'columnOperation', function columnOperationFilter() {
-      return function onFiltering( input ) {
-        var result = {
-          '0': 'valor no valido',
-          '1': 'promediar',
-          '2': 'sumar',
-          '3': 'contar',
-          '4': 'contar valores distintos',
-          '5': 'consulta(query) personalizada [avanzado]'
-        };
-        input = input || 0;
-
-        return result[ input.toString() ];
-      };
-    } )
-    .controller( 'mainController', mainController );
-
-  mainController.$inject = [ 'electron', '$mdDialog', '$rootScope', 'ipc', '$location' ];
+  configureIndicatorController.$inject = [ '$scope', 'ipc', '$state', '$rootScope', '$state' ];
   /**
-   * @name mainController
-   * @description Controller principal se encarga de coordinar lo maximo posible con IPC, y de mostrar las fuentes de datos
-   * @param {any} electron - Wrapper de electron
-   * @param {any} $mdDialog - Servicio de dialogos de angular material
-   * @param {any} $rootScope - Root scope
-   * @param {any} ipc - Wrapper para intercomunicacion con el renderer
-   * @param {any} $location - Wrapper para manejo de urls
-   * @return {void}
+   * @name configureIndicatorController
+   * @description Controller de la configuracion de indicadores
+   * @param {any} $scope - $scope
+   * @param {any} ipc - ipc
+   * @param {any} $stateParams - Servicio para obtener los parametros de la ruta
+   * @param {any} $rootScope - $rootScope
+   * @param {any} $state - Servicio para administrar los estados
+   * @returns {Object} - Objeto con la interfaz publica del scope
    */
-  function mainController( electron, $mdDialog, $rootScope, ipc, $location ) {
+  function configureIndicatorController( $scope, ipc, $stateParams, $rootScope, $state ) {
     var self = this;
+
     angular.extend( self, {
-      showDatabaseDialog: showDatabaseDialog,
-      showFileDialog: showFileDialog,
-      loginOpened: false,
-      selectTable: selectTable,
-      openMenu: openMenu,
-      databases: [],
-      files: []
+      step: 0,
+      datasource: {},
+      indicator: {},
+      onDateSelected: onDateSelected,
+      onValueSelected: onValueSelected,
+      selectedDateColumn: [],
+      selectedValueColumn: [],
+      importPreview: {},
+      save: save,
+      query: {
+        limit: 5,
+        page: 1,
+        order: ''
+      },
+      goToNext: goToNext,
+      cancel: cancel
     } );
-
-    init();
-
-    /**
-     * @name showDatabaseDialog
-     * @description Levanta un dialogo, con el formulario para conectarse a una base de datos
-     * @param {any} e - Evento
-     * @returns {void}
-     */
-    function showDatabaseDialog( e ) {
-      $mdDialog.show( {
-        controller: 'addDatabase as addDatabase',
-        templateUrl: './add-database/add-database.template.html',
-        parent: angular.element( document.body ),
-        targetEvent: e,
-        clickOutsideToClose: true
-      } );
-    }
-
-    /**
-     * @name showLoginDialog
-     * @description Levanta un dialogo, con el formulario para iniciar sesion
-     * @param {any} e - Evento
-     * @returns {void}
-     */
-    function showLoginDialog( e ) {
-      if ( self.loginOpened ) {
-        return;
-      }
-      self.loginOpened = true;
-      $mdDialog.show( {
-        controller: 'loginController as login',
-        templateUrl: './login/login.template.html',
-        parent: angular.element( document.body ),
-        targetEvent: e,
-        clickOutsideToClose: false,
-        escapeToClose: false
-      } );
-    }
-
-
-    /**
-     * @name listDatasources
-     * @description Muestra la lista de fuentes de datos
-     * @param {Array} datasources - Listado de datasources
-     * @returns {void}
-     */
-    function listDatasources( datasources ) {
-      self.databases = datasources.databases;
-      self.files = datasources.files;
-    }
-
-    $rootScope.$on( 'electron-msg', ( event, msg ) => {
-      if ( msg.msg === 'get-datasources-ok' ) {
-        listDatasources( msg.data );
-        $rootScope.datasources = msg.data;
-      }
-
-      if ( msg.msg === 'init-event' ) {
-        $location.path( msg.data );
-        $rootScope.safeApply();
-        return;
-      }
-
-      if ( msg.msg === 'get-indicators-sync-ok' ) {
-        $rootScope.indicators = msg.data;
-      }      
-
-      if ( msg.msg === 'frontend-started-ok' ) {
-        $rootScope.frontendStarted = true;
-
-        $rootScope.$broadcast('frontend-started-ok', {});
-
-        ipc.send( {
-          msg: 'get-datasources',
-          data: {}
-        } );
-
-        ipc.send( {
-          msg: 'get-indicators-sync',
-          data: {}
-        } );        
-      }
-
-      if ( msg.msg === 'login-user' ) {
-        showLoginDialog();
-      }
-
-      if ( msg.msg === 'login-ok' ) {
-        self.loginOpened = false;
-      }
-
-      if ( msg.msg === 'import-indicator-ok' ) {
-        for( var i =0; i&lt; $rootScope.indicators.length; i++ ) {
-          if( $rootScope.indicators[i]._id === msg.data._id ) {
-            $rootScope.indicators[i].status = 'updated';
-            $rootScope.indicators[i].lastDateSynced = msg.data.date;
-            break;
-          }
-        }
-      }
-
-      $rootScope.$broadcast( msg.msg, msg.data );
-      $rootScope.safeApply();
-    } );
-
-    /**
-     * @name openMenu
-     * @description Abre el menu de las fuentes de datos
-     * @param {any} $mdMenu - Servicio del menu de angular material
-     * @param {any} ev - Evento
-     * @returns {void}
-     */
-    function openMenu( $mdMenu, ev ) {
-      $mdMenu.open( ev );
-    }
-
-    /**
-     * @name selectTable
-     * @description Informa a toda la aplicacion que una tabla ha sido seleccionada
-     * @param {any} datasource - Fuente de datos a la que la tabla corresponde
-     * @param {any} tableName - Nombre de la tabla seleccionada
-     * @returns {void}
-     */
-    function selectTable( datasource, tableName ) {
-      $rootScope.$broadcast( 'table-selected', { datasource: datasource, tableName: tableName } );
-    }
-
-    /**
-     * @name showFileDialog
-     *
-     * @returns {void}
-     */
-    function showFileDialog( ) {
-      // console.log( 'file', event );
-    }
 
     /**
      * @name init
@@ -261,14 +72,153 @@
      * @returns {void}
      */
     function init() {
-      $rootScope.indicatorsOnSync= [];
       ipc.send( {
-        msg: 'frontend-started'
+        msg: 'get-indicator',
+        data: {
+          id: $stateParams.params.indicatorId
+        }
+      } );
+
+      $scope.$on( 'get-indicator-ok', ( event, msg ) => {
+        loadIndicator( msg );
+      } );
+
+      $scope.$on( 'get-table-data-ok', ( event, msg ) => {
+        loadTableData( msg );
+      } );
+
+      $scope.$on( 'table-selected', ( event, msg ) => {
+        self.datasource = msg.datasource;
+        self.table = msg.tableName;
+        ipc.send( {
+          msg: 'get-table-data',
+          data: msg
+        } );
+      } );
+
+      $scope.$on( 'import-preview-ok', ( event, msg ) => {
+        self.importPreview.period = new Date( msg.date ).getMonth() + 1 + ' de ' + new Date( msg.date ).getFullYear();
+        self.importPreview.value = msg.value;
+      } );
+
+      $scope.$on( 'import-preview-error', ( event, msg ) => {
+        self.error = msg;
+      } );
+
+      $scope.$on( 'save-indicator-error', ( event, msg ) => {
+        self.error = msg;
+      } );
+
+      $scope.$on( 'save-indicator-ok', ( ) => {
+        $state.go( 'home' );
+      } );
+
+    }
+
+    /**
+     * @name loadIndicator
+     * @description Carga los datos del indicador a configurar
+     * @param {any} data - Datos del indicador a configurar
+     * @returns {void}
+     */
+    function loadIndicator( data ) {
+      self.indicator = data;
+    }
+
+    /**
+     * @name loadTableData
+     * @description Carga los datos de la tabla a usar como fuente de datos
+     * @param {any} table - Datos de la tabla a usar
+     * @returns {void}
+     */
+    function loadTableData( table ) {
+      self.step = 1;
+      self.data = table.data;
+      self.columns = table.columns;
+      self.indicator.datasource.table = self.table;
+
+      if ( self.indicator.datasource.columnOperation === 5 ) {
+        self.indicator.datasource.rowOperation = 'select ${prefijofiltrofecha} count(*) as result from ' + self.table + ' where  ${filtrofecha}';
+      }
+    }
+
+    /**
+     * @name goToNext
+     * @description Mueve el wizard de configuracion hacia el siguiente paso
+     * @returns {void}
+     */
+    function goToNext() {
+      if ( self.indicator.datasource.columnOperation === 5 &amp;&amp; self.step === 2 ) {
+        self.step = 4;
+      } else {
+        self.step++;
+      }
+
+      if ( self.step === 4 ) {
+        ipc.send( {
+          msg: 'import-preview',
+          data: {
+            indicator: self.indicator,
+            datasource: self.datasource
+          }
+        } );
+      }
+    }
+
+
+    /**
+     * @name cancel
+     * @description Reinicia el wizard
+     * @returns {void}
+     */
+    function cancel() {
+      self.step = 0;
+    }
+
+
+    /**
+     * @name onDateSelected
+     * @description Metodo llamado cuando se selecciona la columna que servira como fecha
+     * @param {any} selectedColumn - Columna elegida como fecha
+     * @returns {void}
+     */
+    function onDateSelected( selectedColumn ) {
+      self.indicator.datasource.dateColumn = selectedColumn.title;
+    }
+
+    /**
+     * @name onValueSelected
+     * @description Metodo llamado cuando se selecciona la columna que servira como valor
+     * @param {any} selectedColumn - Columna elegida como valor
+     * @returns {void}
+     */
+    function onValueSelected( selectedColumn ) {
+      self.indicator.datasource.valueColumn = selectedColumn.title;
+    }
+
+
+    /**
+     * @name save
+     * @description Guarda la configuracion de importacion para el indicador
+     * @returns {void}
+     */
+    function save() {
+      self.indicator.datasource._id = self.datasource._id;
+
+      ipc.send( {
+        msg: 'save-indicator',
+        data: self.indicator
       } );
     }
 
-  }
+    if($rootScope.frontendStarted){
+      init();
+    }
+    else{
+      $scope.$on('frontend-started-ok', init );
+    }
 
+  }
 } )();
 </code></pre>
         </article>
