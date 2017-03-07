@@ -128,7 +128,6 @@ function mssqlAdapter() {
 
 
     _.merge( options, params );
-    setupConnection();
 
     if ( !connection ) {
       setupConnection();
@@ -212,21 +211,131 @@ function mssqlAdapter() {
    * @description Obtiene el consolidado de datos para un mes especifico sobre los datos de un indicador
    * @param {Object} params Lista de opciones necesarias para conectarse a la bd
    * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
-   * @param {number} month Mes sobre el cual se quieren calcular los datos
-   * @param {number} year Anio sobre el cual se quieren calcular los datos
+   * @param {Date} from Fecha desde la cual se deberian importar los datos
+   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
    * @returns {Object} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
    */
-  function getMonthlyData( params, indicator, month, year ) {
-    var tableQuery = utils.getImportQuery( params, indicator, month, year );
+  function getMonthlyData( params, indicator, from, to ) {
 
-    return getTableData( params, indicator.datasource.table, 0, null, tableQuery, false )
-      .then( utils.queryImportCallback.bind( this, indicator, new Date( year, month - 1, 1 ) ) );
+    return utils.getFromToDates( params, indicator, from, to )
+      .then(function onDates( dates ) {
+        from = dates.from;
+        to = dates.to;    
+        
+        var tableQuery = utils.getImportQuery( params, indicator, from, to );
+
+        return getTableData( params, indicator.datasource.table, 0, null, tableQuery, false )
+          .then( utils.queryImportCallback.bind( this, indicator ) );
+      } );
+  }
+
+  /**
+   * @name getLastMonthData
+   * @description Obtiene el consolidado de datos para el ultimo mes sobre los datos de un indicador
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
+   */
+  function getLastMonthData( params, indicator ) {
+    return getMaxDate( params, indicator )
+      .then( function onLastMonth( result ) {
+        var from = new Date(result.year, result.month - 1, 1);
+        return getMonthlyData( params, indicator, from, moment(from).endOf('month').toDate() );
+      } );
+  }
+
+  /**
+   * @name getMaxDate
+   * @description Obtiene la fecha del ultimo registro cargado en la tabla
+   * @param {any} params - Parametros de conexion a la base de datos
+   * @param {any} indicator - Indicador sobre el cual se quiere conectar
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve el mes y anio del ultimo registro
+   */
+  function getMaxDate( params, indicator ){
+    var query = 'select ' + indicator.datasource.dateColumn + ' as date from ' + params.database + '.`' + indicator.datasource.table + '` order by ' + indicator.datasource.dateColumn + ' desc limit 1';
+    return executeMonthQuery( params, query );
+  }
+
+  /**
+   * @name getMaxDate
+   * @description Obtiene la fecha del ultimo registro cargado en la tabla
+   * @param {any} params - Parametros de conexion a la base de datos
+   * @param {any} indicator - Indicador sobre el cual se quiere conectar
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve el mes y del primer registro
+   */
+  function getMinDate( params, indicator ){
+    var query = 'select ' + indicator.datasource.dateColumn + ' as date from ' + params.database + '.`' + indicator.datasource.table + '` order by ' + indicator.datasource.dateColumn + ' asc limit 1';
+    return executeMonthQuery( params, query );
+  }
+
+  function executeQuery( params, query ){
+    _.merge( options, params );
+
+    if ( !connection ) {
+      setupConnection();
+    }
+
+    return new Promise(function onPromise(resolve, reject) {
+      try {
+
+        if ( connection.connected ) {
+
+          return new mssql.Request( connection ).query( settings.query ).then( function onTableColumns( rows ) {
+            resolve( rows );
+            return rows;
+          } )
+          .catch( function onMSSQLRequestError( err ) {
+            return reject( err );
+          } );
+
+        } else {
+
+          connection.connect()
+            .catch( function onConnectionError( err ) {
+              return reject( err );
+            } );
+
+          connection.once( 'connect', function() {
+            return new mssql.Request( connection ).query( settings.query ).then( function onTableColumns( rows ) {
+              resolve( rows );
+              return rows;
+            } )
+            .catch( function onMSSQLRequestError( err ) {
+              return reject( err );
+            } );
+
+          } );
+
+        }
+
+
+      } catch ( exception ) {
+        return reject( exception );
+      }
+
+    });
+  }
+
+  /**
+   * @name executeMonthQuery
+   * @description Dada una consulta de base de datos relacionada con fechas, devuelve el mes y la fecha
+   * @param {any} params - Parametros de conexion a la base de datos
+   * @param {any} query - Consulta de base de datos
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve el mes y anio
+   */
+  function executeMonthQuery( params, query ){
+    return executeQuery( params, query )
+      .then(function onQueryGet( rows ) {
+          var result = { month: moment( rows[ 0 ].date ).month() + 1, year: moment( rows[ 0 ].date ).year() };
+          return result;
+      } );
   }
 
   return {
     setDataSource: setDataSource,
     getTableData: getTableData,
-    getMonthlyData: getMonthlyData
+    getMonthlyData: getMonthlyData,
+    getLastMonthData: getLastMonthData    
   };
 
 }

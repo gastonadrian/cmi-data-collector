@@ -118,7 +118,7 @@ function utils() {
         throw 'La consulta no tiene un filtro por mes, por favor agregar al inicio de select "${prefijofiltrofecha}"';
       }
       
-      return query.replace( '${filtrofecha}', dateQuery ).replace('${prefijofiltrofecha}', groupByPrefix );
+      return query.replace( '${filtrofecha}', `${dateQuery} ${groupBy}` ).replace('${prefijofiltrofecha}', groupByPrefix );
 
     }
 
@@ -141,7 +141,40 @@ function utils() {
     return tableQuery;
   }
 
+  /**
+   * @name getFromToDates
+   * @description Valida y devuelve el rango de datos sobre el cual importar los datos
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @param {Date} from Fecha desde la cual se deberian importar los datos
+   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
+   * @returns {Promise} Promesa que devuelve las fechas sobre las cuales importar datos
+   */
+  function getFromToDates( params, indicator, from, to ) {
+    return new Promise( function getDatesPromise(resolve, reject ) {
+      var result = {
+        from:from,
+        to:to
+      };
 
+      // defaults "TO" to today
+      if(!to || !moment(to).isValid()){
+        result.to = new Date();
+      }
+
+      if(!from || !moment(from).isValid()){
+        return getMinDate( params, indicator )
+          .then(function (date){
+              result.from = new Date(date.year, date.month - 1, 1);
+              resolve(result);
+              return result;
+          });
+      }
+
+      resolve(result);
+      return result;
+    } );
+  }
 
 
   /**
@@ -171,11 +204,16 @@ function utils() {
 
     return result;
   }
+  
+  function convertArrayToJSON( columns, data ){
+    
+  }
 
   return {
     setConnString: setConnString,
     getImportQuery: getImportQuery,
-    queryImportCallback: queryImportCallback
+    queryImportCallback: queryImportCallback,
+    getFromToDates: getFromToDates
   };
 }
 

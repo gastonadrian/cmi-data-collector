@@ -29,7 +29,7 @@
         <md-label>
             <strong>Operacion:</strong> {{configureIndicator.indicator.datasource.columnOperation | columnOperation}}
         </md-label>
-        <md-input-container data-ng-show="configureIndicator.indicator.datasource.columnOperation === 5">
+        <md-input-container data-ng-show="configureIndicator.indicator.datasource.columnOperation === 5 && configureIndicator.showQuery">
             <label>Consulta personalizada</label>
             <input type="text" data-ng-model="configureIndicator.indicator.datasource.rowOperation" required>
             <span class="help-block md-accent">Inmediatamente luego de "select" debe ir "${prefijofiltrofecha}"</span>
@@ -69,7 +69,7 @@
             </thead>
             <tbody md-body>
             <tr md-row md-select="row" ng-repeat="row in configureIndicator.data | filter: configureIndicator.query.filter | orderBy: configureIndicator.query.order | limitTo: configureIndicator.query.limit: (configureIndicator.query.page -1) * configureIndicator.query.limit">
-                <td md-cell data-ng-repeat="column in configureIndicator.columns">{{row[column.title]}}</td>
+                <td md-cell data-ng-repeat="column in configureIndicator.columns">{{row[column.title] || row[$index]}}</td>
             </tr>
             </tbody>
         </table>
@@ -106,7 +106,7 @@
             </tr>
             </thead>
             <tbody md-body>
-            <tr md-row md-on-select="configureIndicator.onValueSelected" data-ng-repeat="column in configureIndicator.columns" md-select="column" md-select-id="title" md-auto-select>
+            <tr md-row md-on-select="configureIndicator.onValueSelected" data-ng-repeat="column in configureIndicator.columns" md-select="column" md-select-id="title"  md-auto-select>
                 <td md-cell>{{column.title}}</td>
                 <td md-cell>{{column.type}}</td>                
             </tr>

@@ -87,6 +87,7 @@
       loginOpened: false,
       selectTable: selectTable,
       openMenu: openMenu,
+      datasources: [],      
       databases: [],
       files: []
     } );
@@ -100,6 +101,8 @@
      * @returns {void}
      */
     function showDatabaseDialog( e ) {
+      $location.path('/');
+
       $mdDialog.show( {
         controller: 'addDatabase as addDatabase',
         templateUrl: './add-database/add-database.template.html',
@@ -224,7 +227,21 @@
      * @returns {void}
      */
     function showFileDialog( ) {
-      // console.log( 'file', event );
+      electron.dialog.showOpenDialog({
+        title: 'Elegir archivo',
+        description: 'Archivos permitidos csv, json, xls, xlsx',
+        cancelId: 0,
+        defaultId: 1
+      }).then((result) => { //Promise, not callback.
+        ipc.send( {
+          msg: 'connect-file',
+          data: result
+        } );
+        $location.path('/');
+
+      }, () => {
+      });
+
     }
 
     /**
@@ -233,6 +250,7 @@
      * @returns {void}
      */
     function init() {
+      $rootScope.datasources = [];
       $rootScope.indicatorsOnSync= [];
       ipc.send( {
         msg: 'frontend-started'

@@ -12,6 +12,7 @@
   "main": "main.js",
   "electronVersion": "1.0.0",
   "dependencies": {
+    "babyparse": "^0.4.6",
     "devtron": "^1",
     "electron-debug": "^1",
     "electron-is-dev": "^0.1",

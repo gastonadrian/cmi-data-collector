@@ -19,14 +19,14 @@
     var self = this;
 
     angular.extend( self, {
-      withoutDatasources: true,
+      withoutDatasources: false,
       showDatabase: false,
       showIndicatorsSync: false,
       indicators:[],
       saveDatabaseLabel: 'Elija un nombre con el que le gustaria identificar a la conexion',
       databaseName: '',
       saveDatabase: saveDatabase,
-      handleDatabaseOk: handleDatabaseOk,
+      handleDatasourceOk: handleDatasourceOk,
       sync:sync,
       query: {
         limit: 20,
@@ -48,7 +48,7 @@
      */
     function init(){
 
-      self.withoutDatasources = !($rootScope.datasources && $rootScope.datasources.length);
+      self.withoutDatasources = !(($rootScope.datasources.databases || $rootScope.datasources.files)  &&  ( $rootScope.datasources.databases.length + $rootScope.datasources.files.length));
 
       if($rootScope.indicators && $rootScope.indicators.length){
         self.showIndicatorsSync = true;
@@ -68,7 +68,13 @@
       } );
 
       $scope.$on( 'connect-database-ok', ( event, msg ) => {
-        handleDatabaseOk( msg );
+         handleDatasourceOk( msg );
+                 $rootScope.safeApply();
+      } );
+
+      $scope.$on( 'connect-file-ok', ( event, msg ) => {
+        handleDatasourceOk( msg );
+                 $rootScope.safeApply();
       } );
 
       $scope.$on( 'save-database-ok', ( event, msg ) => {
@@ -96,25 +102,27 @@
       }
 
       ipc.send( {
-        msg: 'save-database',
+        msg: 'save-datasource',
         data: {
           title: self.conectionName
         }
       } );
+
+      self.showDatasource = false;
     }
 
     /**
-     * @name handleDatabaseOk
-     * @description Muestra los datos de la base de datos una vez conectada
+     * @name handleDatasourceOk
+     * @description Muestra los datos de la fuente de datos una vez conectada
      * @param {any} data - Datos de la base de datos conectada
      * @returns {void}
      */
-    function handleDatabaseOk( data ) {
+    function handleDatasourceOk( data ) {
       if ( !data.tables || !data.tables.length ) {
         return;
       }
-      self.showDatabase = true;
-      self.databaseName = data.databaseName;
+      self.showDatasource = true;
+      self.datasourceName = data.name;
       self.tables = data.tables;
       self.firstTable = data.tables[ 0 ];
     }

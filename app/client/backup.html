@@ -70,10 +70,21 @@
                     </md-button>
                 </md-list-item>
                 <md-list-item data-ng-repeat="file in main.files">
-                    <md-button>
-                        <ng-md-icon icon="attachment"></ng-md-icon>
-                        <span>{{file.title}}</span>
-                    </md-button>
+                    <md-menu>
+                        
+                        <md-button data-ng-click="main.openMenu($mdMenu, $event)">
+                            <ng-md-icon icon="attachment"></ng-md-icon>
+                            <span>{{file.title}}</span>
+                        </md-button>
+                        <md-menu-content width="6">
+                            <md-menu-item data-ng-repeat="table in file.tables">
+                                <md-button data-ng-click="main.selectTable(file, table)">
+                                    {{table}}
+                                </md-button>
+                            </md-menu-item>
+                        </md-menu-content>                        
+                    </md-menu>
+                    
                 </md-list-item>                
             </md-list>
 

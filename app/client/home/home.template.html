@@ -12,8 +12,8 @@
         </md-list-item>
     </md-list>
 </div>
-<div data-ng-show="home.showDatabase">
-    <h3>Base de datos: {{home.databaseName}}</h3>
+<div data-ng-show="home.showDatasource">
+    <h3>Fuente de datos: {{home.datasourceName}}</h3>
 
     <label for="">{{home.saveDatabaseLabel}}</label>
     <md-input-container data-ng-form="conection">
@@ -27,7 +27,6 @@
         Guardar
     </md-button>
     
-
 </div>
 <h4 data-ng-show="home.showDatabase">Vista Previa: Listado de tablas encontradas</h4>
 <md-table-container data-ng-show="home.showDatabase">

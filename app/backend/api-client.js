@@ -25,20 +25,19 @@ module.exports = function apiClient() {
   /**
    * @name saveDataSource
    * @description Invoca el microservicio que guarda las fuentes de datos
-   * @param {String} type - Indica el tipo de microservicio "database" o "file"
    * @param {Object} options - Contiene los datos especificos de la fuente de datos
    * @param {Array<String>} tables - Lista de tablas encontradas en la fuente de datos
    * @returns {Promise} - Promesa de llamada http
    */
-  function saveDataSource( type, options, tables ) {
+  function saveDataSource( options, tables ) {
 
     var datasource = {
-      type: type,
+      type: options.filePath ? 'file' : 'database',
       title: options.title,
       tables: tables
     };
 
-    if ( type === 'database' ) {
+    if ( datasource.type === 'database' ) {
       datasource.type = 1;
       datasource.database = {
         engine: options.engine,

@@ -21,6 +21,7 @@
 
     angular.extend( self, {
       step: 0,
+      showQuery: false,
       datasource: {},
       indicator: {},
       onDateSelected: onDateSelected,
@@ -69,8 +70,9 @@
       } );
 
       $scope.$on( 'import-preview-ok', ( event, msg ) => {
-        self.importPreview.period = new Date( msg.date ).getMonth() + 1 + ' de ' + new Date( msg.date ).getFullYear();
-        self.importPreview.value = msg.value;
+        var indicatorData = msg[0];
+        self.importPreview.period = new Date( indicatorData.date ).getMonth() + 1 + ' de ' + new Date( indicatorData.date ).getFullYear();
+        self.importPreview.value = indicatorData.value;
       } );
 
       $scope.$on( 'import-preview-error', ( event, msg ) => {
@@ -95,6 +97,19 @@
      */
     function loadIndicator( data ) {
       self.indicator = data;
+      self.selectedDateColumn = [{ title: data.datasource.dateColumn }];
+      self.selectedValueColumn = [{ title: data.datasource.valueColumn }];
+
+      if(!self.indicator._id){
+        return;
+      }
+      
+       for(var i=0; i < $rootScope.datasources.length;i++){
+         if($rootScope.datasources[i]._id === data.datasource._id ){
+           askForTable({ datasource: $rootScope.datasources[i], tableName: data.datasource.table });
+           break;
+         }
+       }
     }
 
     /**
@@ -111,7 +126,18 @@
 
       if ( self.indicator.datasource.columnOperation === 5 ) {
         self.indicator.datasource.rowOperation = 'select ${prefijofiltrofecha} count(*) as result from ' + self.table + ' where  ${filtrofecha}';
+        self.showQuery = true;
       }
+    }
+
+
+    function askForTable(msg){
+        self.datasource = msg.datasource;
+        self.table = msg.tableName;
+        ipc.send( {
+          msg: 'get-table-data',
+          data: msg
+        } );      
     }
 
     /**
@@ -156,6 +182,7 @@
      */
     function onDateSelected( selectedColumn ) {
       self.indicator.datasource.dateColumn = selectedColumn.title;
+      self.selectedDateColumn = [selectedColumn];
     }
 
     /**
@@ -166,6 +193,7 @@
      */
     function onValueSelected( selectedColumn ) {
       self.indicator.datasource.valueColumn = selectedColumn.title;
+      self.selectedValueColumn = [selectedColumn];
     }
 
 

@@ -130,24 +130,24 @@ function setListeners() {
             options: arg,
             tables: data.tableNames
           };
-          sendMessageToMain( 'connect-database-ok', { databaseName: arg.database, tables: data.tableNames } );
+          sendMessageToMain( 'connect-database-ok', { name: arg.database, tables: data.tableNames } );
         } )
         .catch( function onDatabaseConnectError( error ) {
           sendMessageToMain( 'connect-database-error', error );
         } );
   } );
 
-  ipcRenderer.on( 'connect-file', showFileDialog );
+  ipcRenderer.on( 'connect-file', openDatasourceFile );
 
-  ipcRenderer.on( 'save-database', ( event, arg ) => {
+  ipcRenderer.on( 'save-datasource', ( event, arg ) => {
     latestOptions.options.title = arg.title;
-    apiClient.saveDataSource( 'database', latestOptions.options, latestOptions.tables )
+    apiClient.saveDataSource( latestOptions.options, latestOptions.tables )
       .then( function onDatasourceSaved( response ) {
-        sendMessageToMain( 'save-database-ok', { datasourceId: response.id } );
+        sendMessageToMain( 'save-datasource-ok', { datasourceId: response.id } );
         getDatasources();
       } )
       .catch( function onDatasourceError() {
-        sendMessageToMain( 'save-database-error', {} );
+        sendMessageToMain( 'save-datasource-error', {} );
       } );
   } );
 
@@ -226,6 +226,10 @@ function importData( indicator, datasource, preview, msgToken ) {
     returnPromise;
 
   return new Promise( function onImport( resolve, reject ) {
+    if( !datasource ) {
+      return reject( `El datasource ya no existe, por favor revise su configuracion` );      
+    }
+
     if ( !_.includes( datasource.tables, indicator.datasource.table ) ) {
       return reject( `La tabla (${indicator.datasour.table}) que configuro para este indicador no existe, por favor revise su configuracion` );
     }
@@ -344,7 +348,7 @@ function getDataSourceProvider( provider ) {
  * @param {any} fileNames - Nombre de los archivos
  * @returns {Promise} Promesa con los datos guardados en el archivo
  */
-function openDatasourceFile( fileNames ) {
+function openDatasourceFile( sender, fileNames ) {
   var extension;
   if ( fileNames && fileNames.length ) {
 
@@ -352,8 +356,18 @@ function openDatasourceFile( fileNames ) {
     _.merge( fileOptions, { filePath: fileNames[ 0 ] } );
 
         // get provider
-    extension = path.extname( fileNames[ 0 ] ).split( '.' ).pop();
-    return processDataSource( extension, fileOptions );
+    fileOptions.extension = path.extname( fileNames[ 0 ] ).split( '.' ).pop();
+    return processDataSource( fileOptions.extension, fileOptions )
+      .then( function onDatabaseConnect( data ) {
+        latestOptions = {
+          options: fileOptions,
+          tables: data.tableNames
+        };      
+        sendMessageToMain( 'connect-file-ok', { name: path.basename( fileNames[ 0 ] ), tables: data.tableNames } );
+      } )
+      .catch( function onDatabaseConnectError( error ) {
+        sendMessageToMain( 'connect-file-error', error );
+      } );
   }
 }
 
@@ -367,21 +381,6 @@ function openDatasourceFile( fileNames ) {
 function processDataSource( activeProvider, options ) {
   var provider = getDataSourceProvider( activeProvider );
   return provider.setDataSource( options );
-}
-
-/**
- * @name showFileDialog
- * @description Abre el dialogo de archivos nativo del sistema operativo
- * @returns {void}
- */
-function showFileDialog() {
-  dialog.showOpenDialog( openDatasourceFile )
-    .then( function onDatabaseConnect( data ) {
-      sendMessageToMain( 'connect-file-ok', { tables: data.tableNames } );
-    } )
-    .catch( function onDatabaseConnectError( error ) {
-      sendMessageToMain( 'connect-file-error', error );
-    } );
 }
 
 /**

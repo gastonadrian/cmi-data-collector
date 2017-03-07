@@ -165,7 +165,7 @@ function mySqlAdapter() {
    */
   function getMonthlyData( params, indicator, from, to ) {
 
-    return getFromToDates( params, indicator, from, to )
+    return utils.getFromToDates( params, indicator, from, to )
       .then(function onDates( dates ) {
           from = dates.from;
           to = dates.to;
@@ -177,41 +177,6 @@ function mySqlAdapter() {
        } );
   }
   
-  /**
-   * @name getFromToDates
-   * @description Valida y devuelve el rango de datos sobre el cual importar los datos
-   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
-   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
-   * @param {Date} from Fecha desde la cual se deberian importar los datos
-   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
-   * @returns {Promise} Promesa que devuelve las fechas sobre las cuales importar datos
-   */
-  function getFromToDates( params, indicator, from, to ) {
-    return new Promise( function getDatesPromise(resolve, reject ) {
-      var result = {
-        from:from,
-        to:to
-      };
-
-      // defaults "TO" to today
-      if(!to || !moment(to).isValid()){
-        result.to = new Date();
-      }
-
-      if(!from || !moment(from).isValid()){
-        return getMinDate( params, indicator )
-          .then(function (date){
-              result.from = new Date(date.year, date.month - 1, 1);
-              resolve(result);
-              return result;
-          });
-      }
-
-      resolve(result);
-      return result;
-    } );
-  }
-
 
   /**
    * @name getLastMonthData
@@ -223,7 +188,8 @@ function mySqlAdapter() {
   function getLastMonthData( params, indicator ) {
     return getMaxDate( params, indicator )
       .then( function onLastMonth( result ) {
-        return getMonthlyData( params, indicator, result.month, result.year );
+        var from = new Date(result.year, result.month - 1, 1);
+        return getMonthlyData( params, indicator, from, moment(from).endOf('month').toDate() );
       } );
   }
 
@@ -273,6 +239,7 @@ function mySqlAdapter() {
       } );
     } )    
   }
+
 
   /**
    * @name setConnection

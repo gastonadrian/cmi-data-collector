@@ -13,11 +13,14 @@ function jsonAdapter() {
     filePath: ''
   };
 
-    // TESTS:
-        // VERIFICAR QUE SE DEVUELVEN TODAS LAS COLUMNAS
-        // VERIFICAR QUE SE DEVUELVE EL HEADER
-    // TODO:
-        // ENVIAR COLUMN DATA TYPE
+  function setDataSource( params ){
+    return getTableData( params )
+      .then(function(result) {
+        result.tableNames = ['principal'];
+        return result;
+      } );
+  }
+
   /**
    * @name getTableData
    * @description Obtiene los datos del archivo JSON
@@ -26,10 +29,8 @@ function jsonAdapter() {
    */
   function getTableData( params ) {
     var result = {
-        table: {
-          columns: [],
-          data: []
-        }
+        columns: [],
+        data: []
       },
       column;
 
@@ -39,20 +40,20 @@ function jsonAdapter() {
       .then( function onLoadJsonFile( data ) {
         if ( data && data.length ) {
           for ( column in data[ 0 ] ) {
-            result.table.columns.push( {
+            result.columns.push( {
               title: column,
               data: column
             } );
           }
         }
 
-        result.table.data = data;
+        result.data = data;
         return result;
       } );
   }
 
   return {
-    setDataSource: getTableData,
+    setDataSource: setDataSource,
     getTableData: getTableData
   };
 
