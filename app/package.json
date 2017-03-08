@@ -2,7 +2,7 @@
   "name": "cmidatacollector",
   "productName": "CMI Data Collector",
   "description": "Migrate your management data to a CMI",
-  "version": "0.0.6",
+  "version": "1.0.0",
   "homepage": "https://github.com/gastonadrian/cmi-data-collector",
   "author": {
     "name": "Gaston Moreno / Roberto Cabrera",

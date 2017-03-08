@@ -53,8 +53,8 @@ console.debug( JSON.stringify( pjson.config ) )
 // Adds debug features like hotkeys for triggering dev tools and reload
 // (disabled in production, unless the menu item is displayed)
 require( 'electron-debug' )( {
-  // enabled: pjson.config.debug || isDev || false
-  enabled: true
+  enabled: pjson.config.debug || isDev || false
+  // enabled: true
 } )
 
 
