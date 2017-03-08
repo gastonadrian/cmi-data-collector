@@ -64,8 +64,15 @@ function utils() {
         throw 'La consulta no tiene un filtro por mes, por favor agregar al inicio de select "${prefijofiltrofecha}"';
       }
       
-      return query.replace( '${filtrofecha}', `${dateQuery} ${groupBy}` ).replace('${prefijofiltrofecha}', groupByPrefix );
+      query = query.replace( '${filtrofecha}', `${dateQuery} ` ).replace('${prefijofiltrofecha}', groupByPrefix );
+      if(_.includes(query, 'group by')){
+        query = query + ', mes, anio order by anio, mes';
+      }
+      else{
+        query = query + ` ${groupBy}`;
+      }
 
+      return query;
     }
 
     if ( columnOperation === 4 ) {
