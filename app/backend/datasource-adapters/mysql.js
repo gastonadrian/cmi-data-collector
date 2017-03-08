@@ -165,7 +165,7 @@ function mySqlAdapter() {
    */
   function getMonthlyData( params, indicator, from, to ) {
 
-    return utils.getFromToDates( params, indicator, from, to )
+    return utils.getFromToDates( params, indicator, from, to, getMinDate )
       .then(function onDates( dates ) {
           from = dates.from;
           to = dates.to;

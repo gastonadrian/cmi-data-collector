@@ -1,5 +1,8 @@
+'use strict';
+
 var babyparse = require( 'babyparse' ),
-  _ = require( 'lodash' );
+  _ = require( 'lodash' ),
+  utils = require( './utils' );
 
 /**
  *
@@ -49,7 +52,7 @@ function csvAdapter() {
 
         result.columns = csvFile.data[ 0 ].map( function mapColumn( column ) {
           return {
-            title: column
+            title: `'${column}'`
           };
         } );
         result.data = csvFile.data.splice( 1 );
@@ -76,7 +79,11 @@ function csvAdapter() {
    * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
    */
   function getLastMonthData( params, indicator ){
-
+    return getTableData( params, indicator )
+      .then(function onData( response ) {
+          var data = utils.getLastMonthDataJSON( params, indicator, response );
+          return data;
+      } );
   }
 
   /**
@@ -91,11 +98,27 @@ function csvAdapter() {
     return executeMonthQuery( params, query );
   }
 
+  /**
+   * @name getMonthlyData
+   * @description Obtiene el consolidado de datos para un mes especifico sobre los datos de un indicador
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @param {Date} from Fecha desde la cual se deberian importar los datos
+   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
+   */
+  function getMonthlyData( params, indicator, from, to ) {
+    return utils.getJSONMonthlyData( params, indicator, from, to, getTableData );
+  }
+  
+  
+
 
   return {
     getTableData: getTableData,
-    setDataSource: setDataSource
-    // getLastMonthData: getLastMonthData
+    setDataSource: setDataSource,
+    getLastMonthData: getLastMonthData,
+    getMonthlyData: getMonthlyData
   };
 
 }

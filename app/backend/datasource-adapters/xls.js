@@ -156,9 +156,41 @@ function excelAdapter() {
     } );
   }
 
+  /**
+   * @name getLastMonthData
+   * @description Obtiene el consolidado de datos para el ultimo mes sobre los datos de un indicador
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
+   */
+  function getLastMonthData( params, indicator ){
+    return getTableData( params, indicator )
+      .then(function onData( response ) {
+          var data = utils.getLastMonthDataJSON( params, indicator, response );
+          return data;
+      } );
+  }
+
+  /**
+   * @name getMonthlyData
+   * @description Obtiene el consolidado de datos para un mes especifico sobre los datos de un indicador
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @param {Date} from Fecha desde la cual se deberian importar los datos
+   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
+   */
+  function getMonthlyData( params, indicator, from, to ) {
+    return utils.getJSONMonthlyData( params, indicator, from, to, getTableData );
+  }
+
+
+
   return {
     setDataSource: setDataSource,
-    getTableData: getTableData
+      getTableData: getTableData,
+      getLastMonthData: getLastMonthData,
+    getMonthlyData: getMonthlyData
   }
 
 }

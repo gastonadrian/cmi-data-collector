@@ -149,6 +149,10 @@
             selectedDatasource = $rootScope.datasources.databases[i];
             break;
         }
+        if($rootScope.datasources.files[i]._id === indicator.datasource._id){
+            selectedDatasource = $rootScope.datasources.files[i];
+            break;          
+        }
       }
 
       ipc.send( {

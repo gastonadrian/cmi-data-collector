@@ -4,6 +4,7 @@
  * @returns {Object} Modulo con todas las operaciones cross aplicacion
  */
 function utils() {
+  'use strict';
 
   var moment = require( 'moment' ),
     _ = require( 'lodash' );
@@ -22,61 +23,6 @@ function utils() {
     }
 
     return `${options.protocol}://${userPassword}${options.host}:${options.port}/${options.database}`;
-  }
-
-  /**
-   * @name getImportQuery
-   * @description Obtiene la consulta (query) a ser ejecutada para obtener el consolidado de datos
-   * @param {Object} params - Parametros de conexion
-   * @param {Indicator} indicator - Indicador sobre el cual pedir los datos
-   * @param {number} month - Mes de importacion
-   * @param {number} year - Anio de importacion
-   * @returns {String} consulta a ejecutarse
-   */
-  function _getImportQuery( params, indicator, month, year ) {
-    var tableQuery = '',
-      tableName = indicator.datasource.table,
-      valueColumn = indicator.datasource.valueColumn,
-      dateColumn = indicator.datasource.dateColumn,
-      columnOperation = indicator.datasource.columnOperation,
-      query = indicator.datasource.rowOperation,
-      date = new Date( year, month - 1, 1 ),
-      from = moment( date ).format( 'YYYY-MM-DD' ),
-      to = moment( date ).endOf( 'month' ).format( 'YYYY-MM-DD' ),
-      dateQuery = `${dateColumn} BETWEEN STR_TO_DATE('${from}','%Y-%m-%d')  and STR_TO_DATE('${to}','%Y-%m-%d')`;
-
-    // scape for tables with names like this => "table-name"
-    tableName = '`' + tableName + '`';
-
-    if ( params.engine === 'mssql' ) {
-      dateQuery = `${dateColumn} BETWEEN '${from}' and '${to}'`;
-    }
-
-    if ( columnOperation === 5 ) {
-      if ( query && query.length && _.includes( query, '${filtrofecha}' ) ) {
-        return query.replace( '${filtrofecha}', dateQuery );
-      } else {
-        throw 'La consulta no tiene un filtro por mes, por favor agregue al final de WHERE "AND ${filtrofecha}"';
-      }
-    }
-
-    if ( columnOperation === 4 ) {
-      tableQuery = `select DISTINCT(${valueColumn}) from ${tableName} where ${dateQuery}`;
-    }
-
-    if ( columnOperation === 2 ) {
-      tableQuery = `select SUM(${valueColumn}) as result from ${tableName} where ${dateQuery}`;
-    }
-
-    if ( columnOperation === 3 ) {
-      tableQuery = `select COUNT(${valueColumn}) as result from ${tableName} where ${dateQuery}`;
-    }
-
-    if ( columnOperation === 1 ) {
-      tableQuery = `select AVG(${valueColumn}) as result from ${tableName} where ${dateQuery}`;
-    }
-
-    return tableQuery;
   }
 
 
@@ -150,7 +96,7 @@ function utils() {
    * @param {Date} to Fecha hasta la cual se deberian importar los datos  
    * @returns {Promise} Promesa que devuelve las fechas sobre las cuales importar datos
    */
-  function getFromToDates( params, indicator, from, to ) {
+  function getFromToDates( params, indicator, from, to, getMinDate ) {
     return new Promise( function getDatesPromise(resolve, reject ) {
       var result = {
         from:from,
@@ -158,11 +104,11 @@ function utils() {
       };
 
       // defaults "TO" to today
-      if(!to || !moment(to).isValid()){
+      if(!to || !moment.isDate(to)){
         result.to = new Date();
       }
 
-      if(!from || !moment(from).isValid()){
+      if(!from || !moment.isDate(from)){
         return getMinDate( params, indicator )
           .then(function (date){
               result.from = new Date(date.year, date.month - 1, 1);
@@ -203,17 +149,153 @@ function utils() {
     }
 
     return result;
+
+
   }
-  
-  function convertArrayToJSON( columns, data ){
+
+  function getJSONFromArray(data, columns, dateColumn) {
+    var json = [];
+    for(var i=0; i < data.length; i++){
+      var newObject = {};
+      for(var j=0; j < columns.length; j++) {
+
+        if( dateColumn && columns[j].title == dateColumn ){
+          newObject[columns[j].title] = moment(data[i][j],"DD/MM/YYYY").toDate();
+        } else {
+          newObject[`${columns[j].title}`] = data[i][j];
+        }
+      }
+      json.push(newObject);
+    }
+
+    return _.sortBy(json, [function(obj) { return obj[dateColumn]; }]);
+  }
+
+  function getLastMonthDataJSON( params, indicator, table ){
+      var json,
+        minDate,
+        maxDate,
+        range,
+        result = [];
+
+      if(!table.data.length){
+        return result;
+      }
+        
+      json = getJSONFromArray( table.data, table.columns, indicator.datasource.dateColumn );
+      
+      // ordered by date
+      maxDate = moment(json[json.length-1][indicator.datasource.dateColumn]).endOf('month').toDate();
+      minDate = moment(maxDate).startOf('month').toDate();
+
+      result.push(getJSONMonthData( json, indicator, minDate, maxDate ));
+
+      return result;
+  }
+
+  function getJSONMonthData( table, indicator, from, to ){
+    var result = {
+        customerId: indicator.customerId,
+        indicatorId: indicator._id,
+        value: null,
+        date: to
+    },
+    data = [];
+
+    for( var i=0; i< table.length; i++ ) {
+        var rowDate = table[i][indicator.datasource.dateColumn];
+        if( moment(rowDate).isBetween(from, to)  ){
+          data.push(table[i]);
+        }
+    }    
+
+    if ( indicator.datasource.columnOperation === 5 ) {
+        throw 'La consultas personalizadas no estan disponibles para fuentes de datos de tipo archivo';
+    }
+
+    if(!data.length){
+      result.value = null;
+    }
+
+    if ( indicator.datasource.columnOperation === 4 ) {
+      result.value = _.uniqBy(data, function distinct(obj){
+        return obj[indicator.datasource.valueColumn];
+      }).length;
+    } 
+
+    if ( indicator.datasource.columnOperation === 3 ) {
+      result.value = data.length;
+    }
+
+    if ( indicator.datasource.columnOperation === 2 ) {
+      result.value = _.sumBy(data, indicator.datasource.valueColumn);
+    }
     
+    if ( indicator.datasource.columnOperation === 1 ) {
+      result.value = _.sumBy(data, indicator.datasource.valueColumn) / data.length;
+    }
+
+    return result;
   }
+
+  function getJSONFromToDates( table, indicator, from, to ) {
+      var result = {
+        from: from,
+        to: to
+      };
+      // defaults "TO" to today
+      if(!to || !moment.isDate(to)){
+        result.to = new Date();
+      }
+
+      if(!from || !moment.isDate(from)){
+          result.from = table[0][indicator.datasource.dateColumn];
+      }
+      return result;
+  }
+
+  /**
+   * @name getMonthlyData
+   * @description Obtiene el consolidado de datos para un mes especifico sobre los datos de un indicador
+   * @param {Object} params Lista de opciones necesarias para conectarse a la bd
+   * @param {Indicator} indicator Indicador sobre el cual se quieren importar los datos
+   * @param {Date} from Fecha desde la cual se deberian importar los datos
+   * @param {Date} to Fecha hasta la cual se deberian importar los datos  
+   * @returns {Promise} Promesa asincronica, que al resolverse devuelve las columnas y filas de la tabla proporcionada
+   */
+  function getJSONMonthlyData( params, indicator, from, to, getTableData ) {
+    return getTableData( params )
+      .then(function onData(table){
+          var dates,
+            monthStart,
+            monthEnd,
+            result = [];
+
+          table = getJSONFromArray( table.data, table.columns, indicator.datasource.dateColumn);
+          dates = getJSONFromToDates( table, indicator, from, to );
+          from = dates.from;
+          to = dates.to;
+          monthStart = from;
+          monthEnd = moment(from).endOf('month').toDate();
+          
+          while( moment(monthEnd).isBefore(to) ){
+              result.push(getJSONMonthData(table, indicator, monthStart, monthEnd));
+              monthStart = moment(monthStart).add(1, 'month').startOf('month').toDate();
+              monthEnd = moment(monthStart).endOf('month').toDate();
+          }
+
+          return result;
+      } );
+  }  
 
   return {
     setConnString: setConnString,
     getImportQuery: getImportQuery,
     queryImportCallback: queryImportCallback,
-    getFromToDates: getFromToDates
+    getFromToDates: getFromToDates,
+    getLastMonthDataJSON: getLastMonthDataJSON,
+    getJSONFromArray: getJSONFromArray,
+    getJSONMonthlyData: getJSONMonthlyData
   };
 }
 
