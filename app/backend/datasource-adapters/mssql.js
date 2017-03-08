@@ -264,7 +264,7 @@ function mssqlAdapter() {
    * @returns {Promise} Promesa asincronica, que al resolverse devuelve el mes y del primer registro
    */
   function getMinDate( params, indicator ){
-    var query = 'select ' + indicator.datasource.dateColumn + ' as date from ' + params.database + '.`' + indicator.datasource.table + '` order by ' + indicator.datasource.dateColumn + ' asc limit 1';
+    var query = 'select ' + indicator.datasource.dateColumn + ' as date from ' + params.database + '.`' + indicator.datasource.table + '` where ' + indicator.datasource.dateColumn + ' is not null order by ' + indicator.datasource.dateColumn + ' asc limit 1';
     return executeMonthQuery( params, query );
   }
 
