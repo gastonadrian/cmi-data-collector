@@ -3,6 +3,7 @@ var app = require( 'electron' ).remote,
   path = require( 'path' ),
   _ = require( 'lodash' ),
   ipcRenderer = require( 'electron' ).ipcRenderer,
+  moment = require( 'moment' ),
   settings = require( 'electron-settings' ),
 
   excel = require( './datasource-adapters/xls' ),
@@ -257,7 +258,8 @@ function importData( indicator, datasource, preview, msgToken ) {
         } );
     } 
 
-    return provider.getMonthlyData( connectionParams, indicator )
+    var from = moment(indicator.lastDateSynced).startOf('month').add(1, 'month').toDate();
+    return provider.getMonthlyData( connectionParams, indicator, from )
       .then( apiClient.saveIndicatorData )
       .then( function onOk( response ) {
         sendMessageToMain( msgToken + '-ok', response );
