@@ -215,6 +215,7 @@ function utils() {
 
     if(!data.length){
       result.value = null;
+      return result;
     }
 
     if ( indicator.datasource.columnOperation === 4 ) {
