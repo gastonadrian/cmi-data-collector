@@ -258,7 +258,10 @@ function importData( indicator, datasource, preview, msgToken ) {
         } );
     } 
 
-    var from = moment(indicator.lastDateSynced).startOf('month').add(1, 'month').toDate();
+    var from;
+    if(indicator.lastDateSynced){
+      from = moment(indicator.lastDateSynced).startOf('month').add(1, 'month').toDate();
+    }
     return provider.getMonthlyData( connectionParams, indicator, from )
       .then( apiClient.saveIndicatorData )
       .then( function onOk( response ) {
